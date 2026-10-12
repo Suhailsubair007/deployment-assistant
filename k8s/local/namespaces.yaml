@@ -1,0 +1,11 @@
+# The two environments, for the local kind cluster.
+# On EKS the same namespaces are created by Terraform (terraform/modules/kubernetes).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: staging
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: prod
