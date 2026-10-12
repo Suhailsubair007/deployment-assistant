@@ -10,7 +10,7 @@ import { evaluateHealth, findProblemPods } from "./healthEvaluator.ts";
 import type { HealthReport, HealthStatus, PodProblem } from "./healthEvaluator.ts";
 import type { HistoryStore } from "./historyStore.ts";
 import { SERVICE_PORT } from "./manifestBuilder.ts";
-import type { AppUsage, MetricsService, MetricsUnavailable } from "./metricsService.ts";
+import type { AppUsage, MetricsService, MetricsUnavailable, NodesReport } from "./metricsService.ts";
 import { findDeployment, resolveTarget } from "./target.ts";
 
 /** Everything known about one app in one environment, with the verdict. */
@@ -99,6 +99,19 @@ export class StatusService {
       health.reasons.push(`${notExplained} more pod${notExplained === 1 ? " has" : "s have"} problems.`);
     }
     return { environment, app, health, deployment, pods, probe, usage };
+  }
+
+  /** CPU and memory of the app's pods only. Returns null when the app is not deployed. */
+  async getUsage(environment: string, app: string): Promise<AppUsage | MetricsUnavailable | null> {
+    const { namespace } = resolveTarget(this.config, environment, app);
+    if ((await findDeployment(this.gateway, namespace, app)) === null) {
+      return null;
+    }
+    return this.metrics.getAppUsage(namespace, app);
+  }
+
+  getNodes(): Promise<NodesReport> {
+    return this.metrics.getNodes();
   }
 
   /** One summary per environment and app. A failure in one environment does not hide the others. */

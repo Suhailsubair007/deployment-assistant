@@ -205,3 +205,28 @@ test("an environment that cannot be checked is UNKNOWN; the others are still sho
   assert.equal(staging?.reason, "I can't reach the cluster.");
   assert.equal(prod?.status, "NOT DEPLOYED");
 });
+
+// ---- Usage and nodes on their own ----
+
+test("usage alone is available without running the health checks", async () => {
+  const { service, gateway } = await setup();
+  gateway.failNext("getServiceHealth", new Error("the health call must not be made for a usage question"));
+
+  const usage = await service.getUsage("staging", "sample-app");
+
+  assert.equal(usage?.available, true);
+});
+
+test("usage of an app that is not deployed gives null", async () => {
+  const { service } = await setup();
+
+  assert.equal(await service.getUsage("prod", "sample-app"), null);
+});
+
+test("nodes are reported with their usage", async () => {
+  const { service } = await setup();
+
+  const report = await service.getNodes();
+
+  assert.equal(report.nodes[0]?.cpuPercent, 41);
+});
