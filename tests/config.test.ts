@@ -25,6 +25,7 @@ apps:
     imageRepository: sample-app
     port: 8080
     replicas: 3
+    maxReplicas: 10
     resources:
       requests: { cpu: 100m, memory: 128Mi }
       limits: { cpu: 500m, memory: 256Mi }
@@ -48,6 +49,7 @@ test("the shipped config file loads with staging and a protected prod", () => {
   assert.equal(config.environments.staging.protected, false);
   assert.equal(config.environments.prod.protected, true);
   assert.equal(config.apps["sample-app"].resources.limits.memory, "256Mi");
+  assert.equal(config.apps["sample-app"].maxReplicas, 10);
   assert.equal(config.timeouts.rolloutSeconds, 180);
 });
 

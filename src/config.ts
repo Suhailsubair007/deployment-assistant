@@ -26,7 +26,10 @@ export interface ResourceAmounts {
 export interface AppDefaults {
   imageRepository: string;
   port: number;
+  /** Replicas used the first time the app is deployed. */
   replicas: number;
+  /** The assistant refuses to scale beyond this. */
+  maxReplicas: number;
   resources: { requests: ResourceAmounts; limits: ResourceAmounts };
 }
 
@@ -124,6 +127,7 @@ function readApps(section: Section): Record<string, AppDefaults> {
       imageRepository: readText(settings, "imageRepository", path),
       port: readNumber(settings, "port", path),
       replicas: readNumber(settings, "replicas", path),
+      maxReplicas: readNumber(settings, "maxReplicas", path),
       resources: {
         requests: readResourceAmounts(resources, "requests", `${path}.resources`),
         limits: readResourceAmounts(resources, "limits", `${path}.resources`),

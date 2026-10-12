@@ -1,0 +1,17 @@
+# Template for the Service in front of the app's pods: one stable address inside the cluster.
+# The assistant calls GET /health through this Service.
+apiVersion: v1
+kind: Service
+metadata:
+  name: "{{name}}"
+  labels:
+    app: "{{name}}"
+    app.kubernetes.io/managed-by: deployment-assistant
+spec:
+  type: ClusterIP
+  selector:
+    app: "{{name}}"
+  ports:
+    - name: http
+      port: {{servicePort}}
+      targetPort: {{port}}

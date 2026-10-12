@@ -31,3 +31,9 @@ export class ForbiddenError extends AppError {}
 
 /** metrics-server is missing or not ready, so there are no CPU and memory numbers. */
 export class MetricsUnavailableError extends AppError {}
+
+/** The request itself cannot be carried out as asked, for example an image without a version. */
+export class InvalidRequestError extends AppError {}
+
+/** Another change to the same environment is still running. */
+export class DeployInProgressError extends AppError {}

@@ -1,0 +1,53 @@
+# Template for the Deployment the assistant creates or updates.
+# Values in {{double braces}} are filled in by src/services/manifestBuilder.ts,
+# which checks every value before it is placed here.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: "{{name}}"
+  labels:
+    app: "{{name}}"
+    app.kubernetes.io/managed-by: deployment-assistant
+spec:
+  replicas: {{replicas}}
+  selector:
+    matchLabels:
+      app: "{{name}}"
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      # Start one new pod, wait until it is ready, then stop one old pod.
+      # The app never runs with fewer pods than asked for, even when the new version is broken.
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: "{{name}}"
+    spec:
+      containers:
+        - name: "{{name}}"
+          image: "{{image}}"
+          ports:
+            - containerPort: {{port}}
+          resources:
+            requests:
+              cpu: "{{cpuRequest}}"
+              memory: "{{memoryRequest}}"
+            limits:
+              cpu: "{{cpuLimit}}"
+              memory: "{{memoryLimit}}"
+          # Ready = may receive traffic. A pod that fails this is taken out of the Service.
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{port}}
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          # Alive = still working. A pod that fails this is restarted.
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{port}}
+            initialDelaySeconds: 10
+            periodSeconds: 10
