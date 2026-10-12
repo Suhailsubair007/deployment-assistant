@@ -3,8 +3,8 @@
 import type { ClusterGateway, EventInfo, PodInfo } from "../cluster/gateway.ts";
 
 const IMAGE_PROBLEMS = new Set(["ImagePullBackOff", "ErrImagePull", "InvalidImageName"]);
-// A new pod passes through these on its way up. They are not problems.
-const NORMAL_STARTUP = new Set(["ContainerCreating", "PodInitializing"]);
+/** Waiting reasons a new pod passes through on its way up. They are not problems. */
+export const NORMAL_STARTUP = new Set(["ContainerCreating", "PodInitializing"]);
 
 const LOG_LINES_TO_READ = 5;
 

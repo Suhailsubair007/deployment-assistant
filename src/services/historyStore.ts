@@ -146,6 +146,14 @@ export class HistoryStore {
       .run(status, message ?? null, new Date().toISOString(), id);
   }
 
+  /** The most recent change of any kind to this app in this environment, or null. */
+  latest(environment: string, app: string): DeploymentRecord | null {
+    const row = this.db
+      .prepare("SELECT * FROM deployments WHERE environment = ? AND app = ? ORDER BY id DESC LIMIT 1")
+      .get(environment, app);
+    return row === undefined ? null : toRecord(row);
+  }
+
   /** The most recent deploy or rollback (not scaling, which keeps the image), or null. */
   latestImageChange(environment: string, app: string): DeploymentRecord | null {
     const row = this.db

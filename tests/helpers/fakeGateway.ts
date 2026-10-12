@@ -14,8 +14,8 @@ import type {
 } from "../../src/cluster/gateway.ts";
 import { NotFoundError } from "../../src/errors.ts";
 
-/** What the new pods do after a change. */
-export type RolloutBehaviour = "succeed" | "stall" | "imageNotFound" | "crashLoop";
+/** What the new pods do after a change. "frozen" leaves the pods exactly as the test arranged them. */
+export type RolloutBehaviour = "succeed" | "stall" | "imageNotFound" | "crashLoop" | "frozen";
 
 interface FakeDeployment {
   name: string;
@@ -38,7 +38,7 @@ export class FakeGateway implements ClusterGateway {
   nodes: NodeInfo[] = [
     { name: "node-1", ready: true, memoryPressure: false, diskPressure: false, allocatable: { cpu: "4", memory: "8Gi" } },
   ];
-  nodeUsage: NodeUsage[] = [{ nodeName: "node-1", cpu: "1640m", memory: "5040Mi" }];
+  nodeUsage: NodeUsage[] = [{ nodeName: "node-1", cpu: "1640m", memory: "5161Mi" }];
   /** Usage per pod name. A pod that is not listed has no metrics yet. */
   podUsage = new Map<string, { cpu: string; memory: string }>();
   /** Set this to make metrics calls fail, as they do when metrics-server is missing. */
@@ -215,7 +215,7 @@ export class FakeGateway implements ClusterGateway {
   /** Moves a rollout forward by one step. Called on every pod listing, like one tick of a clock. */
   private advanceRollout(key: string): void {
     const deployment = this.deployments.get(key);
-    if (deployment === undefined) {
+    if (deployment === undefined || this.rollout === "frozen") {
       return;
     }
     const pods = this.pods.get(key) ?? [];

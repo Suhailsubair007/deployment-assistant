@@ -116,6 +116,15 @@ test("the latest image change skips scaling, which does not change the image", (
   assert.equal(latest?.previousImage, "sample-app:v1");
 });
 
+test("the latest change of any kind includes scaling", () => {
+  const store = newStore();
+  store.finish(store.start(deployTo("staging")).id, "succeeded");
+  store.finish(store.start(deployTo("staging", { action: "scale" })).id, "succeeded");
+
+  assert.equal(store.latest("staging", "sample-app")?.action, "scale");
+  assert.equal(store.latest("prod", "sample-app"), null);
+});
+
 test("there is no latest image change for an environment that was never deployed to", () => {
   assert.equal(newStore().latestImageChange("prod", "sample-app"), null);
 });

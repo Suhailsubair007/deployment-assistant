@@ -5,14 +5,15 @@
 //   2. execute()  carries the plan out: it takes the environment's lock, applies the
 //                 manifests, and then follows the rollout in the background.
 
-import type { ClusterGateway, DeploymentInfo, PodInfo } from "../cluster/gateway.ts";
-import type { AppConfig, AppDefaults } from "../config.ts";
-import { AppError, InvalidRequestError, NotFoundError } from "../errors.ts";
+import type { ClusterGateway, PodInfo } from "../cluster/gateway.ts";
+import type { AppConfig } from "../config.ts";
+import { AppError, InvalidRequestError } from "../errors.ts";
 import type { FailureExplainer } from "./failureExplainer.ts";
 import { formatDeploymentId } from "./historyStore.ts";
 import type { DeploymentAction, DeploymentStatus, HistoryStore } from "./historyStore.ts";
 import { buildManifests } from "./manifestBuilder.ts";
 import type { Operation, OperationStore } from "./operationStore.ts";
+import { findDeployment, resolveTarget } from "./target.ts";
 
 /** A change that has been worked out but not carried out yet. Shown to the user for confirmation. */
 export interface ChangePlan {
@@ -78,13 +79,13 @@ export class DeploymentService {
   // ---- Step 1: planning ----
 
   async planDeploy(request: { environment: string; app: string; version: string }): Promise<ChangePlan> {
-    const { namespace, defaults } = this.settingsFor(request.environment, request.app);
+    const { namespace, defaults } = resolveTarget(this.config, request.environment, request.app);
     const registry = this.imageRegistry === "" ? "" : `${this.imageRegistry}/`;
     const image = `${registry}${defaults.imageRepository}:${request.version}`;
     // Building the manifest checks the image and version; a bad one is refused right here.
     buildManifests({ name: request.app, image, replicas: defaults.replicas, port: defaults.port, resources: defaults.resources });
 
-    const current = await this.currentDeployment(namespace, request.app);
+    const current = await findDeployment(this.gateway, namespace, request.app);
     if (current?.image === image) {
       throw new InvalidRequestError(`${image} is already running in ${request.environment}. Nothing to deploy.`);
     }
@@ -102,8 +103,8 @@ export class DeploymentService {
   }
 
   async planScale(request: { environment: string; app: string; replicas: number }): Promise<ChangePlan> {
-    const { namespace, defaults } = this.settingsFor(request.environment, request.app);
-    const current = await this.currentDeployment(namespace, request.app);
+    const { namespace, defaults } = resolveTarget(this.config, request.environment, request.app);
+    const current = await findDeployment(this.gateway, namespace, request.app);
     if (current === null) {
       throw new InvalidRequestError(
         `${request.app} is not deployed in ${request.environment} yet, so there is nothing to scale.`,
@@ -135,8 +136,8 @@ export class DeploymentService {
   }
 
   async planRollback(request: { environment: string; app: string }): Promise<ChangePlan> {
-    const { namespace } = this.settingsFor(request.environment, request.app);
-    const current = await this.currentDeployment(namespace, request.app);
+    const { namespace } = resolveTarget(this.config, request.environment, request.app);
+    const current = await findDeployment(this.gateway, namespace, request.app);
     // "Previous" means: the image that was running before the most recent deploy or rollback.
     const lastChange = this.history.latestImageChange(request.environment, request.app);
     if (current === null || lastChange === null || lastChange.previousImage === null) {
@@ -167,7 +168,7 @@ export class DeploymentService {
    * the plan was made, or Kubernetes refused the manifests.
    */
   async execute(plan: ChangePlan, requestedBy: string): Promise<StartedOperation> {
-    const { defaults } = this.settingsFor(plan.environment, plan.app);
+    const { defaults } = resolveTarget(this.config, plan.environment, plan.app);
 
     // Gives the right message when another change is plainly still running.
     this.history.assertFree(plan.environment);
@@ -295,29 +296,6 @@ export class DeploymentService {
       return "";
     }
     return ` The old version is still running. Type "roll back ${plan.environment}" to return to ${plan.currentImage}.`;
-  }
-
-  // ---- Helpers ----
-
-  private settingsFor(environment: string, app: string): { namespace: string; defaults: AppDefaults } {
-    if (!Object.hasOwn(this.config.environments, environment)) {
-      const known = Object.keys(this.config.environments).join(", ");
-      throw new InvalidRequestError(`There is no environment called "${environment}". I know: ${known}.`);
-    }
-    if (!Object.hasOwn(this.config.apps, app)) {
-      const known = Object.keys(this.config.apps).join(", ");
-      throw new InvalidRequestError(`I don't know an app called "${app}". I know: ${known}.`);
-    }
-    return { namespace: this.config.environments[environment].namespace, defaults: this.config.apps[app] };
-  }
-
-  /** The app's Deployment, or null when it is not deployed. Fails when the namespace itself is missing. */
-  private async currentDeployment(namespace: string, app: string): Promise<DeploymentInfo | null> {
-    const deployment = await this.gateway.getDeployment(namespace, app);
-    if (deployment === null && !(await this.gateway.namespaceExists(namespace))) {
-      throw new NotFoundError(`Namespace "${namespace}" does not exist in this cluster.`, "namespaces");
-    }
-    return deployment;
   }
 }
 

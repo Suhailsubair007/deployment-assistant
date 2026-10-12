@@ -5,6 +5,8 @@
 //   node scripts/smoke.ts deploy <version> [environment]
 //   node scripts/smoke.ts scale <replicas> [environment]
 //   node scripts/smoke.ts rollback [environment]
+//   node scripts/smoke.ts status [environment]
+//   node scripts/smoke.ts wait-status <HEALTHY|DEGRADED|DOWN> [environment]   (checks every 5 s, up to 3 minutes)
 
 import { KubeGateway } from "../src/cluster/kubeGateway.ts";
 import { loadConfig } from "../src/config.ts";
@@ -13,19 +15,68 @@ import { DeploymentService } from "../src/services/deploymentService.ts";
 import type { ChangePlan } from "../src/services/deploymentService.ts";
 import { FailureExplainer } from "../src/services/failureExplainer.ts";
 import { HistoryStore } from "../src/services/historyStore.ts";
+import { MetricsService } from "../src/services/metricsService.ts";
 import { OperationStore } from "../src/services/operationStore.ts";
+import { StatusService } from "../src/services/statusService.ts";
+import { formatCpu, formatMemory } from "../src/services/units.ts";
 
 const APP = "sample-app";
 
 const gateway = new KubeGateway(process.env.KUBE_CONTEXT);
+const config = loadConfig(process.env.CONFIG_PATH ?? "config/app.config.yaml");
+const history = new HistoryStore(process.env.DB_PATH ?? "data/assistant.db");
+const explainer = new FailureExplainer(gateway);
 const deployments = new DeploymentService({
   gateway,
-  history: new HistoryStore(process.env.DB_PATH ?? "data/assistant.db"),
+  history,
   operations: new OperationStore(),
-  config: loadConfig(process.env.CONFIG_PATH ?? "config/app.config.yaml"),
-  explainer: new FailureExplainer(gateway),
+  config,
+  explainer,
   imageRegistry: process.env.IMAGE_REGISTRY,
 });
+const statuses = new StatusService({ gateway, history, config, explainer, metrics: new MetricsService(gateway) });
+
+/** Prints the verdict for one environment and returns it. */
+async function printStatus(environment: string): Promise<string> {
+  const status = await statuses.getStatus(environment, APP);
+  if (status === null) {
+    console.log(`${APP} is not deployed in ${environment}.`);
+    return "NOT DEPLOYED";
+  }
+  const { deployment, probe, usage, health } = status;
+  console.log(`${APP} (${environment}) is ${health.status}`);
+  console.log(
+    `  pods ${deployment.availableReplicas}/${deployment.desiredReplicas} available | ` +
+      `/health: ${probe.statusCode ?? "no answer"} in ${probe.responseMs} ms | image ${deployment.image}`,
+  );
+  if (usage.available) {
+    for (const pod of usage.pods) {
+      console.log(
+        `  ${pod.podName}: CPU ${formatCpu(pod.cpu.used)} (${pod.cpu.percentOfLimit}% of limit), ` +
+          `memory ${formatMemory(pod.memory.used)} (${pod.memory.percentOfLimit}% of limit)`,
+      );
+    }
+  }
+  for (const reason of health.reasons) {
+    console.log(`  reason: ${reason}`);
+  }
+  for (const note of health.notes) {
+    console.log(`  note: ${note}`);
+  }
+  return health.status;
+}
+
+/** Checks the status every 5 seconds until it is the wanted one, for at most 3 minutes. */
+async function waitForStatus(wanted: string, environment: string): Promise<void> {
+  for (let attempt = 0; attempt < 36; attempt++) {
+    const status = await statuses.getStatus(environment, APP);
+    if (status?.health.status === wanted) {
+      break;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+  }
+  await printStatus(environment);
+}
 
 /** Carries out a plan and prints each progress step as it appears. */
 async function carryOut(plan: ChangePlan): Promise<void> {
@@ -98,8 +149,14 @@ async function main(): Promise<void> {
     case "rollback":
       await carryOut(await deployments.planRollback({ environment: rest[0] ?? "staging", app: APP }));
       return;
+    case "status":
+      await printStatus(rest[0] ?? "staging");
+      return;
+    case "wait-status":
+      await waitForStatus(rest[0] ?? "HEALTHY", rest[1] ?? "staging");
+      return;
     default:
-      console.log("Usage: node scripts/smoke.ts read|deploy <version>|scale <replicas>|rollback [environment]");
+      console.log("Usage: node scripts/smoke.ts read|status|deploy <version>|scale <replicas>|rollback [environment]");
       process.exitCode = 1;
   }
 }
