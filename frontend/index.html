@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Deployment Assistant</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="top-bar">
+      <h1>Deployment Assistant</h1>
+      <label class="name-field">
+        Your name
+        <input id="user-name" type="text" maxlength="40" placeholder="anonymous" autocomplete="nickname" />
+      </label>
+    </header>
+
+    <main class="layout">
+      <section class="chat" aria-label="Conversation">
+        <!-- New messages are announced to screen readers as they arrive. -->
+        <div id="messages" class="messages" aria-live="polite"></div>
+
+        <form id="message-form" class="message-form">
+          <label class="visually-hidden" for="message-input">Message</label>
+          <input
+            id="message-input"
+            type="text"
+            maxlength="500"
+            placeholder='Try: deploy sample-app version v2 to staging'
+            autocomplete="off"
+            autofocus
+          />
+          <button id="send-button" type="submit">Send</button>
+        </form>
+      </section>
+
+      <aside class="status-panel" aria-label="Environment status">
+        <div class="status-panel-header">
+          <h2>Environments</h2>
+          <button id="refresh-button" type="button">Refresh</button>
+        </div>
+        <div id="environments"></div>
+        <p id="status-checked" class="status-checked"></p>
+      </aside>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>

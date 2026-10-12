@@ -1,0 +1,321 @@
+/* Plain, readable layout: the conversation on the left, the status panel on the right. */
+
+:root {
+  --background: #f4f6f8;
+  --surface: #ffffff;
+  --text: #1b2430;
+  --muted: #5d6b7c;
+  --border: #d5dbe3;
+  --user-bubble: #dce9ff;
+  --accent: #1f5fd1;
+  --accent-text: #ffffff;
+  --healthy: #1b7a43;
+  --healthy-background: #e2f4e9;
+  --degraded: #8a5a00;
+  --degraded-background: #fcefd2;
+  --down: #b3261e;
+  --down-background: #fbe4e2;
+  --neutral-background: #e8ecf1;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #11161d;
+    --surface: #1a212b;
+    --text: #e4e9f0;
+    --muted: #98a4b5;
+    --border: #2f3a48;
+    --user-bubble: #24406e;
+    --accent: #6ea0ff;
+    --accent-text: #0d1420;
+    --healthy: #73d49b;
+    --healthy-background: #17331f;
+    --degraded: #f0c060;
+    --degraded-background: #3a2e12;
+    --down: #ff9086;
+    --down-background: #3f1d1a;
+    --neutral-background: #263140;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--background);
+  color: var(--text);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+button,
+input {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+/* ---- Top bar ---- */
+
+.top-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 10px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.top-bar h1 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.name-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.name-field input {
+  width: 150px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--background);
+}
+
+/* ---- Layout ---- */
+
+.layout {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 16px;
+  padding: 16px;
+}
+
+.chat {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.status-panel {
+  width: 300px;
+  flex-shrink: 0;
+  align-self: flex-start;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+@media (max-width: 760px) {
+  .layout {
+    flex-direction: column;
+  }
+
+  .status-panel {
+    width: 100%;
+    order: -1;
+  }
+}
+
+/* ---- Conversation ---- */
+
+.messages {
+  flex: 1;
+  min-height: 200px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+}
+
+.message {
+  max-width: 92%;
+  padding: 8px 12px;
+  border-radius: 8px;
+  /* Replies contain line breaks and aligned numbers; keep them as written. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.message.user {
+  align-self: flex-end;
+  background: var(--user-bubble);
+}
+
+.message.agent {
+  align-self: flex-start;
+  background: var(--neutral-background);
+  font-family: var(--mono);
+  font-size: 13.5px;
+}
+
+.message.error {
+  border: 1px solid var(--down);
+}
+
+.message-form {
+  display: flex;
+  gap: 8px;
+  padding: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.message-form input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--background);
+}
+
+.message-form button,
+.confirm-button {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+/* ---- Confirm and Cancel ---- */
+
+.action-warning {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--down);
+  border-radius: 6px;
+  background: var(--down-background);
+  color: var(--down);
+  font-family: system-ui, sans-serif;
+  font-weight: 600;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  font-family: system-ui, sans-serif;
+}
+
+.progress {
+  margin-top: 6px;
+}
+
+/* ---- Status words: HEALTHY, DEGRADED, DOWN ---- */
+
+.status-word {
+  padding: 0 5px;
+  border-radius: 4px;
+  font-weight: 700;
+}
+
+.status-HEALTHY,
+.status-succeeded {
+  color: var(--healthy);
+  background: var(--healthy-background);
+}
+
+.status-DEGRADED {
+  color: var(--degraded);
+  background: var(--degraded-background);
+}
+
+.status-DOWN,
+.status-failed {
+  color: var(--down);
+  background: var(--down-background);
+}
+
+.status-UNKNOWN,
+.status-NOT-DEPLOYED {
+  color: var(--muted);
+  background: var(--neutral-background);
+}
+
+/* ---- Status panel ---- */
+
+.status-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.status-panel h2 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.environment {
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+
+.environment-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.environment-detail {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.status-checked {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}

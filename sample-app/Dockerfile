@@ -15,4 +15,5 @@ ENV APP_VERSION=${APP_VERSION} \
 # Do not run as root inside the container.
 USER node
 EXPOSE 8080
-CMD ["node", "server.js"]
+# --expose-gc lets /stress give memory back as soon as its hold time is over.
+CMD ["node", "--expose-gc", "server.js"]

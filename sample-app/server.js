@@ -45,6 +45,11 @@ function holdMemory(megabytes, holdSeconds) {
   let block = Buffer.alloc(megabytes * MI, 1);
   setTimeout(() => {
     block = null;
+    // Node frees memory only when its garbage collector runs, and an idle app may not
+    // run it for a long time. Ask for it now, so the usage really drops after the hold.
+    if (global.gc) {
+      global.gc();
+    }
     console.log(`Released ${megabytes} Mi`);
   }, holdSeconds * 1000);
 }
