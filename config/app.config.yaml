@@ -1,0 +1,43 @@
+# Everything a team may want to tune lives here, not in the code.
+
+# Each environment is one Kubernetes namespace.
+environments:
+  staging:
+    namespace: staging
+  prod:
+    namespace: prod
+    protected: true # the Confirm step shows an extra warning
+
+# Defaults used when the assistant creates or updates a Deployment.
+apps:
+  sample-app:
+    imageRepository: sample-app
+    port: 8080
+    replicas: 3
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+
+timeouts:
+  rolloutSeconds: 180 # give up waiting for a rollout after this long
+  healthRequestMs: 3000 # give up on one GET /health call after this long
+  pollIntervalMs: 2000 # how often rollout status is read
+
+# When an app is reported as DEGRADED.
+thresholds:
+  default:
+    memoryPercentOfLimit: 85 # memory use above this share of the limit
+    cpuPercentOfLimit: 90 # CPU use above this share of the limit
+    restartCount: 3 # a pod restarted more than this many times
+    oomKillWindowMinutes: 30 # an OOMKill this recent still counts
+    healthResponseMs: 1000 # /health slower than this
+    pendingSeconds: 60 # a pod stuck in Pending longer than this
+  # Per-environment values that replace the defaults above, for example:
+  #   overrides:
+  #     prod:
+  #       memoryPercentOfLimit: 75
+  overrides: {}

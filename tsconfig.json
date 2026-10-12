@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "es2024",
+    "lib": ["es2024"],
+    "module": "nodenext",
+    "types": ["node"],
+    "strict": true,
+    "skipLibCheck": true,
+
+    // Node 24 runs the .ts files itself, so TypeScript only checks types and writes no files.
+    "noEmit": true,
+    // Node removes type annotations but cannot translate TypeScript-only features such as enums.
+    "erasableSyntaxOnly": true,
+    // Type-only imports must say "import type", so Node knows it can drop them.
+    "verbatimModuleSyntax": true,
+    // Imports name the real file, for example "./config.ts".
+    "allowImportingTsExtensions": true
+  },
+  "include": ["src", "tests", "scripts"]
+}
