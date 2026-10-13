@@ -65,7 +65,11 @@ export function createApp(deps: AppDeps): Express {
 
   // The status panel.
   app.get("/api/status", async (_request, response) => {
-    response.json({ environments: await statuses.getSummaries(), checkedAt: new Date() });
+    response.json({
+      cluster: statuses.clusterName(),
+      environments: await statuses.getSummaries(),
+      checkedAt: new Date(),
+    });
   });
 
   // The conversation of this tab, so a page reload does not lose it.

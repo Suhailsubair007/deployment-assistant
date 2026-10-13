@@ -150,6 +150,14 @@ test("the status endpoint lists every environment", async () => {
   );
 });
 
+test("the status endpoint names the cluster the app is connected to", async () => {
+  const { call } = await setup();
+
+  const answer = await call("GET", "/api/status");
+
+  assert.equal(answer.body.cluster, "fake-cluster");
+});
+
 test("an unknown operation is 404 with a clear message", async () => {
   const { call } = await setup();
 

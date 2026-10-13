@@ -81,6 +81,11 @@ export class StatusService {
     return this.metrics.getNodes();
   }
 
+  /** Name of the cluster every status here is read from. */
+  clusterName(): string {
+    return this.gateway.clusterName();
+  }
+
   /** One summary per environment and app. A failure in one environment does not hide the others. */
   getSummaries(): Promise<EnvironmentSummary[]> {
     const targets = Object.keys(this.config.environments).flatMap((environment) =>

@@ -70,7 +70,7 @@ function PlaceholderCard() {
 
 /** One card per environment: status, image and last update, with a Refresh button. */
 export function StatusPanel({ status }: { status: EnvironmentStatusState }) {
-  const { environments, checkedAt, error, isRefreshing, refresh } = status;
+  const { cluster, environments, checkedAt, error, isRefreshing, refresh } = status;
   const hasCards = environments !== null && environments.length > 0;
 
   let checkedText = "Checking the cluster...";
@@ -85,8 +85,19 @@ export function StatusPanel({ status }: { status: EnvironmentStatusState }) {
       aria-label="Environment status"
       className="order-first max-h-full min-h-0 gap-0 rounded-2xl py-0 shadow-soft min-[861px]:order-none min-[861px]:self-start"
     >
-      <div className="flex items-center justify-between border-b py-2.5 pr-3 pl-4">
-        <h2 className="text-sm font-bold tracking-[-0.01em]">Environments</h2>
+      <div className="flex items-center justify-between gap-3 border-b py-2.5 pr-3 pl-4">
+        <div className="min-w-0">
+          <h2 className="text-sm font-bold tracking-[-0.01em]">Environments</h2>
+          {/* The cluster these environments are in. On EKS the name is long, so it may take two lines. */}
+          {cluster !== null && (
+            <p
+              title="The cluster the assistant is connected to. The deployment history is kept per cluster."
+              className="mt-0.5 text-xs text-muted-foreground [overflow-wrap:anywhere]"
+            >
+              Cluster <span className="font-mono text-[11.5px] text-foreground">{cluster}</span>
+            </p>
+          )}
+        </div>
         {/* The button is switched off only while a check is running. */}
         <Button variant="outline" disabled={isRefreshing} onClick={refresh} className="h-[30px] px-2.5 text-[12.5px]">
           <RefreshCw className={cn("size-3.5", isRefreshing && "animate-spin")} />

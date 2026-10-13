@@ -22,7 +22,11 @@ export function getOperation(operationId: string) {
 
 /** The status panel. */
 export function getStatus() {
-  return callApi<{ environments: EnvironmentSummary[]; checkedAt: string }>("GET", API.status, readIdentity());
+  return callApi<{ cluster: string; environments: EnvironmentSummary[]; checkedAt: string }>(
+    "GET",
+    API.status,
+    readIdentity(),
+  );
 }
 
 /** The conversation of this tab, so a page reload does not lose it. */

@@ -10,6 +10,8 @@ import type { EnvironmentSummary } from "@/lib/types";
 export function useEnvironmentStatus() {
   // null until the first check has answered; the panel shows placeholder cards meanwhile.
   const [environments, setEnvironments] = useState<EnvironmentSummary[] | null>(null);
+  // The name of the cluster the server is connected to, as its kubeconfig calls it.
+  const [cluster, setCluster] = useState<string | null>(null);
   const [checkedAt, setCheckedAt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(true);
@@ -19,6 +21,7 @@ export function useEnvironmentStatus() {
     setIsRefreshing(true);
     try {
       const status = await getStatus();
+      setCluster(status.cluster);
       setEnvironments(status.environments);
       setCheckedAt(status.checkedAt);
       setError(null);
@@ -35,7 +38,7 @@ export function useEnvironmentStatus() {
     void refresh();
   }, [refresh]);
 
-  return { environments, checkedAt, error, isRefreshing, refresh };
+  return { cluster, environments, checkedAt, error, isRefreshing, refresh };
 }
 
 export type EnvironmentStatusState = ReturnType<typeof useEnvironmentStatus>;
