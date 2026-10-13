@@ -1,10 +1,15 @@
 import assert from "node:assert/strict";
+import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 
 import { Agent } from "@/agent/agent.ts";
 import type { ParsedMessage } from "@/types/agent.ts";
 import type { MessageReader, Reading } from "@/types/agent.ts";
+import { createRuleReader } from "@/agent/messageReader.ts";
 import { SessionStore } from "@/agent/sessionStore.ts";
+import { WIZARD_BUSY } from "@/constants/agent.ts";
 import { loadConfig } from "@/config.ts";
 import { ClusterUnreachableError, MetricsUnavailableError } from "@/errors.ts";
 import { DeploymentService } from "@/services/deploymentService.ts";
@@ -15,24 +20,34 @@ import { OperationStore } from "@/services/operationStore.ts";
 import { ServiceRegistry } from "@/services/serviceRegistry.ts";
 import type { ServiceSpec } from "@/types/service.ts";
 import { StatusService } from "@/services/statusService.ts";
+import type { BuildTools } from "@/types/build.ts";
+import { FakeBuildTools } from "./helpers/fakeBuildTools.ts";
 import { FakeGateway } from "./helpers/fakeGateway.ts";
 
 const TAB = "tab-1";
 const DEPLOY_V2 = "deploy sample-app version v2 to staging";
+
+// A project folder with a Dockerfile, inside a folder the assistant is allowed to build from.
+const PROJECTS = realpathSync(mkdtempSync(join(tmpdir(), "projects-")));
+const FOLDER = join(PROJECTS, "orders-api");
+mkdirSync(FOLDER);
+writeFileSync(join(FOLDER, "Dockerfile"), "FROM node:24-alpine\nEXPOSE 3000\n");
 
 /**
  * The real agent and services on top of a pretend cluster.
  * sample-app v1 runs in staging with 3 pods; prod is empty.
  *
  * @param reader how messages are read; left out, the agent uses the built-in rules
+ * @param build what builds images; left out, a pretend builder that behaves like a kind cluster. Null: nothing can be built.
  */
-async function setup(reader?: MessageReader) {
+async function setup(reader?: MessageReader, build: BuildTools | null = new FakeBuildTools()) {
   const gateway = new FakeGateway();
   gateway.seed("staging", "sample-app", "sample-app:v1", 3);
   for (const pod of await gateway.listPods("staging", "sample-app")) {
     gateway.podUsage.set(pod.name, { cpu: "70m", memory: "127Mi" });
   }
   const config = loadConfig("config/app.config.yaml");
+  config.build.allowedRoots = [PROJECTS];
   const history = new HistoryStore(":memory:", "fake-cluster");
   const operations = new OperationStore();
   const explainer = new FailureExplainer(gateway);
@@ -44,7 +59,16 @@ async function setup(reader?: MessageReader) {
     history,
     sessions,
     registry,
-    deployments: new DeploymentService({ gateway, history, operations, config, registry, explainer, sleep: async () => {} }),
+    deployments: new DeploymentService({
+      gateway,
+      history,
+      operations,
+      config,
+      registry,
+      explainer,
+      build: build ?? undefined,
+      sleep: async () => {},
+    }),
     statuses: new StatusService({ gateway, history, config, registry, explainer, metrics: new MetricsService(gateway) }),
     now: () => nowMs,
     reader,
@@ -56,6 +80,7 @@ async function setup(reader?: MessageReader) {
     operations,
     sessions,
     registry,
+    build,
     say: (text: string, tab = TAB, user = "asha") => agent.handleMessage(tab, text, user),
     passTime: (minutes: number) => {
       nowMs += minutes * 60_000;
@@ -322,7 +347,7 @@ test("a message the agent does not understand gets one sentence that lists what 
 
   assert.equal(
     reply.text,
-    "I'm not sure how to help with that. I can deploy, roll back and scale your apps, and show their health, CPU and memory, a full status, the nodes and past deployments.",
+    "I'm not sure how to help with that. I can create a service from a project folder, deploy, roll back, scale and edit your apps, and show their health, CPU and memory, a full status, the nodes and past deployments.",
   );
 });
 
@@ -332,6 +357,7 @@ test("a message the agent does not understand comes with a few requests to try i
   const reply = await say("tell me a joke");
 
   assert.deepEqual(reply.suggestions, [
+    "create a service",
     "is staging healthy?",
     "deploy sample-app version v2 to staging",
     "show my last 5 deployments",
@@ -345,7 +371,7 @@ test("the requests to try are kept with the conversation, so a page reload still
   const reply = await say("tell me a joke");
 
   assert.deepEqual(sessions.get(TAB).messages.at(-1)?.suggestions, reply.suggestions);
-  assert.equal(reply.suggestions?.length, 4);
+  assert.equal(reply.suggestions?.length, 5);
 });
 
 // ---- History ----
@@ -566,4 +592,251 @@ test("with two services, help, nodes and history are answered without asking whi
     assert.doesNotMatch(reply.text, /Which app/);
   }
   assert.match(nodes.text, /node-1/);
+});
+
+// ---- Creating a service from the chat, one question at a time ----
+
+type Say = (text: string) => Promise<{ text: string; action?: { id: string; warning: string | null } }>;
+
+/** Asks for a new service and answers every question. The reply it returns is the summary to confirm. */
+async function createOrdersApi(say: Say, answers: { environment?: string; variables?: string } = {}) {
+  await say("create a service");
+  await say(FOLDER);
+  await say("default"); // the name: orders-api, from the folder
+  await say(answers.environment ?? "staging");
+  await say("default"); // the port: 3000, from the Dockerfile
+  await say("default"); // the health path
+  await say("default"); // CPU
+  await say("default"); // memory
+  await say("default"); // replicas
+  await say("default"); // the most replicas
+  return say(answers.variables ?? "NODE_ENV=production");
+}
+
+test('"create a service" starts the questions with the project folder', async () => {
+  const { say } = await setup();
+
+  const reply = await say("create a service");
+
+  assert.match(reply.text, /^I'll ask one thing at a time\./);
+  assert.match(reply.text, /Where is the project folder\?/);
+  assert.equal(reply.action, undefined);
+});
+
+test("each answer gets the next question, with the value that default would take", async () => {
+  const { say } = await setup();
+  await say("create a service");
+
+  const name = await say(FOLDER);
+  const environment = await say("default");
+  const port = await say("staging");
+
+  assert.equal(name.text, "What should the service be called?\nDefault: orders-api");
+  assert.equal(environment.text, "Which environment: staging or prod?");
+  assert.equal(port.text, "Which port does the app listen on?\nDefault: 3000 (from the Dockerfile)");
+});
+
+test("the last answer gets the summary to confirm, and nothing has been built or changed", async () => {
+  const { say, gateway, build, registry } = await setup();
+
+  const reply = await createOrdersApi(say);
+
+  assert.match(reply.text, /^Create orders-api in staging\?\n/);
+  for (const row of [`Folder | ${FOLDER}`, "Image | orders-api:v1", "Port | 3000", "Health check | /health", "Variables | NODE_ENV=production"]) {
+    assert.ok(reply.text.includes(row), `the summary should have the row: ${row}\n${reply.text}`);
+  }
+  assert.equal(reply.action?.warning, null);
+  assert.deepEqual(gateway.writes, []);
+  assert.deepEqual((build as FakeBuildTools).calls, []);
+  assert.equal(registry.find("staging", "orders-api"), null);
+});
+
+test("Confirm builds the image, hands it to the cluster and starts the service", async () => {
+  const { agent, say, gateway, operations, build, registry } = await setup();
+  const summary = await createOrdersApi(say);
+
+  const reply = await agent.confirm(TAB, summary.action?.id ?? "", "asha");
+  const operation = await finished(operations, reply.operationId);
+
+  assert.equal(reply.text, "Build started (dep-001).");
+  assert.equal(operation.state, "succeeded");
+  assert.deepEqual((build as FakeBuildTools).calls, [`build ${FOLDER} orders-api:v1`, "publish orders-api:v1"]);
+  assert.deepEqual(gateway.writes, ["applyService staging orders-api", "applyDeployment staging orders-api:v1 x2"]);
+  assert.equal(registry.find("staging", "orders-api")?.folder, FOLDER);
+});
+
+test("the answers are checked by fixed rules and never handed to the message reader", async () => {
+  const rules = createRuleReader({ environments: ["staging", "prod"], apps: ["sample-app"] });
+  const read: string[] = [];
+  const counting: MessageReader = {
+    description: rules.description,
+    read: async (text, awaiting) => {
+      read.push(text);
+      return rules.read(text, awaiting);
+    },
+  };
+  const { say } = await setup(counting);
+
+  await createOrdersApi(say);
+
+  assert.deepEqual(read, ["create a service"]);
+});
+
+test("another request typed in the middle of the questions is not carried out", async () => {
+  const { say, gateway } = await setup();
+  await say("create a service");
+  await say(FOLDER);
+
+  const reply = await say(DEPLOY_V2);
+  const next = await say("default");
+
+  assert.equal(reply.text, `${WIZARD_BUSY.create}\nWhat should the service be called?\nDefault: orders-api`);
+  assert.equal(reply.action, undefined);
+  assert.deepEqual(gateway.writes, []);
+  // The questions go on from where they were.
+  assert.equal(next.text, "Which environment: staging or prod?");
+});
+
+test("a bad answer gets the reason and the same question again", async () => {
+  const { say } = await setup();
+  await say("create a service");
+
+  const reply = await say("/nowhere/at/all");
+
+  assert.match(reply.text, /^I can't find a folder at \/nowhere\/at\/all\.\nWhere is the project folder\?/);
+});
+
+test("cancel stops the questions, and the chat answers other requests again", async () => {
+  const { say } = await setup();
+  await say("create a service");
+  await say(FOLDER);
+
+  const cancelled = await say("cancel");
+  const health = await say("is sample-app healthy in staging?");
+
+  assert.equal(cancelled.text, "Cancelled. Nothing was created.");
+  assert.match(health.text, /^sample-app \(staging\) is HEALTHY/);
+});
+
+test("a service created in prod carries the extra warning", async () => {
+  const { say } = await setup();
+
+  const reply = await createOrdersApi(say, { environment: "prod" });
+
+  assert.match(reply.text, /^Create orders-api in prod\?/);
+  assert.match(reply.action?.warning ?? "", /prod is a protected environment/);
+});
+
+test("a create request that already names the environment does not ask for it again", async () => {
+  const { reader } = scriptedReader([{ parsed: { intent: "create", environment: "prod" } }]);
+  const { say } = await setup(reader);
+  await say("set up a new service on prod for me");
+  await say(FOLDER);
+
+  const afterName = await say("default");
+
+  assert.match(afterName.text, /^Which port does the app listen on\?/);
+});
+
+test("on a cluster the assistant cannot build for, the questions do not start", async () => {
+  const { say } = await setup(undefined, null);
+
+  const reply = await say("create a service");
+
+  assert.equal(reply.text, "I can build images only for a kind cluster or an EKS cluster, and this cluster is neither.");
+});
+
+// ---- Changing and rebuilding a service made in the chat ----
+
+/** orders-api v1, built from the folder, runs in staging with 2 pods. */
+async function setupWithOrdersApi() {
+  const all = await setup();
+  all.registry.save({
+    ...ORDERS_API,
+    folder: FOLDER,
+    resources: { requests: { cpu: "100m", memory: "128Mi" }, limits: { cpu: "500m", memory: "256Mi" } },
+    lastVersion: 1,
+  });
+  all.gateway.seed("staging", "orders-api", "orders-api:v1", 2);
+  return all;
+}
+
+test("edit lists the settings, asks for the one to change, and offers the change for confirmation", async () => {
+  const { say, gateway } = await setupWithOrdersApi();
+
+  const list = await say("edit orders-api in staging");
+  const question = await say("memory");
+  const summary = await say("128Mi to 512Mi");
+
+  assert.match(list.text, /^What do you want to change in orders-api \(staging\)\?\n/);
+  assert.ok(list.text.includes("memory | 128Mi to 256Mi"), list.text);
+  assert.ok(question.text.includes("Now: 128Mi to 256Mi"), question.text);
+  assert.equal(
+    summary.text,
+    [
+      "Change the settings of orders-api in staging?",
+      "Memory | 128Mi to 256Mi -> 128Mi to 512Mi",
+      "Note: The pods are replaced one at a time with the new settings. The image stays orders-api:v1.",
+    ].join("\n"),
+  );
+  assert.ok(summary.action);
+  assert.deepEqual(gateway.writes, []);
+});
+
+test("a confirmed settings change is applied with the same image and stored", async () => {
+  const { agent, say, gateway, operations, registry } = await setupWithOrdersApi();
+  await say("edit orders-api in staging");
+  await say("variables");
+  const summary = await say("LOG_LEVEL=debug");
+
+  const reply = await agent.confirm(TAB, summary.action?.id ?? "", "asha");
+  const operation = await finished(operations, reply.operationId);
+
+  assert.equal(reply.text, "Applying the new settings (dep-001).");
+  assert.equal(operation.state, "succeeded");
+  assert.deepEqual(gateway.writes, ["applyService staging orders-api", "applyDeployment staging orders-api:v1 x2"]);
+  assert.deepEqual(registry.find("staging", "orders-api")?.env, [{ name: "LOG_LEVEL", value: "debug" }]);
+});
+
+test("edit without an environment asks which one first", async () => {
+  const { say } = await setupWithOrdersApi();
+
+  const question = await say("edit orders-api");
+  const list = await say("staging");
+
+  assert.equal(question.text, "Change the settings of orders-api in which environment: staging or prod?");
+  assert.match(list.text, /^What do you want to change in orders-api \(staging\)\?/);
+});
+
+test("deploying a service that is built from a folder needs no version: it offers to build the next one", async () => {
+  const { say, gateway } = await setupWithOrdersApi();
+
+  const reply = await say("deploy orders-api to staging");
+
+  assert.equal(
+    reply.text,
+    `Build orders-api from ${FOLDER} and deploy it to staging as orders-api:v2 (2 replicas)? It runs orders-api:v1 now.`,
+  );
+  assert.ok(reply.action);
+  assert.deepEqual(gateway.writes, []);
+});
+
+test("a named version of a folder service is deployed as it is, without building", async () => {
+  const { say } = await setupWithOrdersApi();
+
+  const reply = await say("deploy orders-api version v3 to staging");
+
+  assert.match(reply.text, /^I'll update deployment "orders-api" in namespace "staging" to image orders-api:v3/);
+});
+
+test("a request that happens to name an environment is not taken as the answer to which environment", async () => {
+  const { say, gateway } = await setup();
+  await say("create a service");
+  await say(FOLDER);
+  await say("default"); // the name; the next question is the environment
+
+  const reply = await say(DEPLOY_V2);
+
+  assert.equal(reply.text, `${WIZARD_BUSY.create}\nWhich environment: staging or prod?`);
+  assert.deepEqual(gateway.writes, []);
 });

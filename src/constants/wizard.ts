@@ -12,8 +12,9 @@ export const EXPOSE_PATTERN = /^\s*EXPOSE\s+(\d+)/im;
 
 export const MAX_NAME_LENGTH = 40;
 
-// Lowercase letters, digits and dashes, starting with a letter and ending with a letter or a digit.
-export const SERVICE_NAME_PATTERN = /^[a-z]([a-z0-9-]*[a-z0-9])?$/;
+// Lowercase letters and digits in groups joined by single dashes, starting with a letter: "orders-api-2".
+// The image repository takes its name from this, and it refuses two dashes in a row or a dash at the end.
+export const SERVICE_NAME_PATTERN = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
 
 // Ports below 1024 need special rights inside the container, so the app may not use them.
 export const LOWEST_PORT = 1024;
@@ -143,7 +144,7 @@ export const EDIT_CANCELLED = "Cancelled. Nothing was changed.";
 
 export const NO_DEFAULT = "There is no default for this one.";
 
-export const BAD_NAME = `A name uses lowercase letters, digits and dashes. It starts with a letter, ends with a letter or a digit, and is at most ${MAX_NAME_LENGTH} characters long.`;
+export const BAD_NAME = `A name uses lowercase letters, digits and single dashes. It starts with a letter, ends with a letter or a digit, and is at most ${MAX_NAME_LENGTH} characters long.`;
 
 /** The name is taken in the environment the user just named. */
 export function nameTaken(name: string, environment: string): string {

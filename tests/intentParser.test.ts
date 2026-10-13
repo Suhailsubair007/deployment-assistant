@@ -38,6 +38,14 @@ const cases: [message: string, expected: ParsedMessage][] = [
   ["help", { intent: "help" }],
   ["what can you do?", { intent: "help" }],
 
+  // Services made in the chat
+  ["create a service", { intent: "create" }],
+  ["I want to create a new service in staging", { intent: "create", environment: "staging" }],
+  ["add a new service", { intent: "create" }],
+  ["new app please", { intent: "create" }],
+  ["edit sample-app in staging", { intent: "edit", app: "sample-app", environment: "staging" }],
+  ["change the settings of sample-app", { intent: "edit", app: "sample-app" }],
+
   // Answers and follow-ups carry details but no intent of their own
   ["what about prod?", { intent: null, environment: "prod" }],
   ["staging", { intent: null, environment: "staging" }],

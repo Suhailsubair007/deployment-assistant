@@ -51,6 +51,18 @@ export const TOOLS: Record<string, Tool> = {
     description: "Explain what the assistant can do.",
     details: [],
   },
+  create_service: {
+    intent: "create",
+    description:
+      "Create, add or set up a new service (app) from a project folder on the user's machine. The assistant then asks for the details itself.",
+    details: ["environment"],
+  },
+  edit_service: {
+    intent: "edit",
+    description:
+      "Change the settings of an existing app: its CPU, memory, port, health check path, environment variables or maximum replicas. Not the number of replicas (that is scale) and not the version (that is deploy).",
+    details: ["app", "environment"],
+  },
   give_details: {
     intent: null,
     description:

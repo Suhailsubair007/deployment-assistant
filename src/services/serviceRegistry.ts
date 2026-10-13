@@ -37,18 +37,24 @@ export class ServiceRegistry {
     return this.fromConfig(environment, name);
   }
 
-  /** Throws InvalidRequestError, naming what is known, when the environment or the service does not exist. */
-  resolve(environment: string, name: string): ResolvedService {
+  /** The Kubernetes namespace of an environment. Throws InvalidRequestError, naming the known ones, when there is none. */
+  namespaceOf(environment: string): string {
     if (!Object.hasOwn(this.config.environments, environment)) {
       const known = Object.keys(this.config.environments).join(", ");
       throw new InvalidRequestError(`There is no environment called "${environment}". I know: ${known}.`);
     }
+    return this.config.environments[environment].namespace;
+  }
+
+  /** Throws InvalidRequestError, naming what is known, when the environment or the service does not exist. */
+  resolve(environment: string, name: string): ResolvedService {
+    const namespace = this.namespaceOf(environment);
     const spec = this.find(environment, name);
     if (spec === null) {
       const known = this.list(environment).map((service) => service.name).join(", ");
       throw new InvalidRequestError(`I don't know an app called "${name}". I know: ${known}.`);
     }
-    return { namespace: this.config.environments[environment].namespace, spec };
+    return { namespace, spec };
   }
 
   /** The services of one environment: the config apps first, then the saved ones, oldest first. */

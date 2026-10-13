@@ -50,6 +50,16 @@ const understood: [message: string, picked: ToolCall, expected: ParsedMessage][]
   ],
   ["what are you able to do", { name: "show_help", args: {} }, { intent: "help" }],
   [
+    "I have an API on my laptop, put it on staging",
+    { name: "create_service", args: { environment: "staging" } },
+    { intent: "create", environment: "staging" },
+  ],
+  [
+    "give sample-app more memory in prod",
+    { name: "edit_service", args: { app: "sample-app", environment: "prod" } },
+    { intent: "edit", app: "sample-app", environment: "prod" },
+  ],
+  [
     "the staging one please",
     { name: "give_details", args: { app: null, environment: "staging", version: null, replicas: null } },
     { intent: null, environment: "staging" },
@@ -250,7 +260,7 @@ test("the model is given the known names, the message and a fixed list of tools"
   assert.equal(request.message, "Message: are the machines okay?");
   assert.deepEqual(
     request.tools.map((tool) => tool.name),
-    ["deploy", "scale", "roll_back", "check_health", "show_usage", "show_nodes", "full_status", "list_deployments", "show_help", "give_details", "not_understood"],
+    ["deploy", "scale", "roll_back", "check_health", "show_usage", "show_nodes", "full_status", "list_deployments", "show_help", "create_service", "edit_service", "give_details", "not_understood"],
   );
 });
 

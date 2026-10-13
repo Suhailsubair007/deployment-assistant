@@ -245,3 +245,17 @@ test("an OOMKill counts only while it is recent", () => {
 
   assert.deepEqual(namesOf(pods), ["killed-recently"]);
 });
+
+test("a service with its own health path is named by that path in the reasons", () => {
+  const noAnswer = evaluateHealth(
+    input({ healthPath: "/healthz", probe: { ok: false, statusCode: null, responseMs: 3000 } }),
+    thresholds,
+  );
+  const slow = evaluateHealth(
+    input({ healthPath: "/healthz", probe: { ok: true, statusCode: 200, responseMs: 1500 } }),
+    thresholds,
+  );
+
+  assert.deepEqual(noAnswer.reasons, ["/healthz did not answer within 3000 ms."]);
+  assert.deepEqual(slow.reasons, ["/healthz is slow: 1500 ms (threshold 1000 ms)."]);
+});

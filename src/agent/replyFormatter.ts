@@ -35,7 +35,8 @@ function factsLine(status: AppStatus): string {
   const rolledOut = deployment.updatedReplicas === wanted && deployment.availableReplicas === wanted;
   const rollout = rolledOut ? "complete" : `in progress (${deployment.updatedReplicas}/${wanted} updated)`;
 
-  return `Pods ${deployment.readyReplicas}/${wanted} ready, ${plural(restarts, "restart")} | /health: ${health} | Rollout: ${rollout}`;
+  const path = status.healthPath ?? "/health";
+  return `Pods ${deployment.readyReplicas}/${wanted} ready, ${plural(restarts, "restart")} | ${path}: ${health} | Rollout: ${rollout}`;
 }
 
 function reasonLines(status: AppStatus): string[] {
@@ -298,6 +299,8 @@ export function formatHelp(known: KnownNames, howRead?: string): string {
   const last = known.environments.at(-1) ?? first;
   return [
     "Here is what I can do. Anything that changes the cluster asks for confirmation first.",
+    "- create a service (I ask for the project folder, CPU, memory and the rest, one question at a time)",
+    `- edit ${app} in ${first}`,
     `- deploy ${app} version v2 to ${first}`,
     `- roll back ${first}`,
     `- scale ${first} to 5 replicas`,
@@ -322,6 +325,7 @@ export function formatSuggestions(known: KnownNames): string[] {
   const app = known.apps[0] ?? "my-app";
   const first = known.environments[0] ?? "staging";
   return [
+    "create a service",
     `is ${first} healthy?`,
     `deploy ${app} version v2 to ${first}`,
     "show my last 5 deployments",

@@ -69,12 +69,13 @@ export class StatusService {
       }),
     );
 
-    const health = evaluateHealth({ app, deployment, probe, usage, podProblems }, thresholds);
+    const { healthPath } = spec;
+    const health = evaluateHealth({ app, deployment, probe, usage, podProblems, healthPath }, thresholds);
     const notExplained = problemPods.length - podProblems.length;
     if (notExplained > 0) {
       health.reasons.push(`${notExplained} more pod${notExplained === 1 ? " has" : "s have"} problems.`);
     }
-    return { environment, app, health, deployment, pods, probe, usage };
+    return { environment, app, health, deployment, pods, probe, usage, healthPath };
   }
 
   /** CPU and memory of the app's pods only. Returns null when the app is not deployed. */

@@ -315,7 +315,7 @@ for (const [what, name] of badNames) {
     assertRefused(
       answerAt("name", name),
       "name",
-      "A name uses lowercase letters, digits and dashes. It starts with a letter, ends with a letter or a digit, and is at most 40 characters long.",
+      "A name uses lowercase letters, digits and single dashes. It starts with a letter, ends with a letter or a digit, and is at most 40 characters long.",
       QUESTIONS.name,
     );
   });
@@ -952,4 +952,12 @@ test("CPU without a unit is refused when it is more whole cores than a machine h
 test("a few whole cores are still accepted", () => {
   assert.equal(asked(answerAt("cpu", "1 to 2")).wizard.field, "memory");
   assert.equal(asked(answerAt("cpu", "0.5")).wizard.field, "memory");
+});
+
+test("a name with two dashes in a row is refused: the image repository would not accept it", () => {
+  const step = asked(answerAt("name", "orders--api"));
+
+  assert.equal(step.rejected, true);
+  assert.equal(step.wizard.field, "name");
+  assert.equal(asked(answerAt("name", "orders-api-2")).rejected, undefined);
 });

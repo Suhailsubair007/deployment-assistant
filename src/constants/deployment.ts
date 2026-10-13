@@ -1,5 +1,7 @@
 import { join } from "node:path";
 
+import type { OperationStage } from "@/types/deployment.ts";
+
 // A new pod in one of these states will not recover by waiting, so the rollout stops early.
 export const GIVE_UP_REASONS = new Set(["ImagePullBackOff", "InvalidImageName", "CrashLoopBackOff"]);
 
@@ -50,3 +52,11 @@ export const IMAGE_REPOSITORY_PATTERN = /^[a-z0-9]+(?:[._\-/:][a-z0-9]+)*$/;
 export const IMAGE_TAG_PATTERN = /^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$/;
 
 export const MAX_KEPT_OPERATIONS = 200;
+
+// How each stage of a change that builds an image is named when it fails: "failed while building the image".
+export const STAGE_WORDS: Record<OperationStage, string> = {
+  repository: "preparing the image repository",
+  build: "building the image",
+  publish: "uploading the image",
+  pods: "starting the pods",
+};

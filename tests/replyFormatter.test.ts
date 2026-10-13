@@ -326,7 +326,7 @@ test("rollback and scale summaries say from what to what", () => {
 test("help lists an example for each thing the agent can do, with the known names", () => {
   const text = formatHelp({ environments: ["staging", "prod"], apps: ["sample-app"] });
 
-  for (const example of ["deploy sample-app version v2 to staging", "roll back staging", "scale staging to 5 replicas", "is staging healthy?", "how are the nodes doing?", "full status of prod", "show my last 5 deployments"]) {
+  for (const example of ["create a service", "edit sample-app in staging", "deploy sample-app version v2 to staging", "roll back staging", "scale staging to 5 replicas", "is staging healthy?", "how are the nodes doing?", "full status of prod", "show my last 5 deployments"]) {
     assert.ok(text.includes(example), `help should mention: ${example}`);
   }
   assert.ok(text.includes("Environments: staging, prod"), text);
@@ -342,6 +342,7 @@ test("help ends with how messages are read, when that is given", () => {
 
 test("the requests to try use the first environment and the first app", () => {
   assert.deepEqual(formatSuggestions({ environments: ["staging", "prod"], apps: ["sample-app"] }), [
+    "create a service",
     "is staging healthy?",
     "deploy sample-app version v2 to staging",
     "show my last 5 deployments",
@@ -473,4 +474,10 @@ test("the history describes a created service and a settings change in words", (
 
   assert.ok(text.includes("dep-009 | staging | change settings of orders-api:v1 |"), text);
   assert.ok(text.includes("dep-008 | staging | create orders-api:v1 (first deployment) |"), text);
+});
+
+test("the health line names the service's own health path", () => {
+  const text = formatHealth(status({ healthPath: "/healthz" }));
+
+  assert.ok(text.includes("| /healthz: 200 in 62 ms |"), text);
 });

@@ -5,6 +5,7 @@ import type { ServiceRegistry } from "@/services/serviceRegistry.ts";
 import type { StatusService } from "@/services/statusService.ts";
 import type { AppConfig, LlmSettings } from "@/types/config.ts";
 import type { ChangePlan } from "@/types/deployment.ts";
+import type { Wizard } from "@/types/wizard.ts";
 
 export interface AgentReply {
   text: string;
@@ -31,6 +32,8 @@ export interface AgentDeps {
 }
 
 export type IntentName =
+  | "create"
+  | "edit"
   | "deploy"
   | "scale"
   | "rollback"
@@ -114,4 +117,6 @@ export interface Session {
   awaiting?: ParsedMessage;
   /** A change that waits for Confirm or Cancel. At most one at a time. */
   pending?: PendingAction;
+  /** The questions for creating or changing a service, while they are being asked. */
+  wizard?: Wizard;
 }

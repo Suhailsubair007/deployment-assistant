@@ -19,6 +19,8 @@ export interface HealthInput {
   probe: HealthProbe;
   usage: AppUsage | MetricsUnavailable;
   podProblems: PodProblem[];
+  /** The path the health check called, for the wording. Left out, it is "/health". */
+  healthPath?: string;
 }
 
 export interface HealthReport {
@@ -90,6 +92,8 @@ export interface AppStatus {
   pods: PodInfo[];
   probe: HealthProbe;
   usage: AppUsage | MetricsUnavailable;
+  /** The path the health check called. Left out, it is "/health". */
+  healthPath?: string;
 }
 
 /** One row of the status panel. */

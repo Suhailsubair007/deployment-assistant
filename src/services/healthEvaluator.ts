@@ -1,4 +1,5 @@
 import { NORMAL_STARTUP, STATUS_SEVERITY } from "@/constants/monitoring.ts";
+import { DEFAULT_HEALTH_PATH } from "@/constants/service.ts";
 import type { PodInfo } from "@/types/cluster.ts";
 import type { Thresholds } from "@/types/config.ts";
 import type { HealthInput, HealthReport, HealthStatus, PodUsageReport } from "@/types/monitoring.ts";
@@ -45,6 +46,7 @@ function busiest(
 
 export function evaluateHealth(input: HealthInput, thresholds: Thresholds): HealthReport {
   const { app, deployment, probe, usage, podProblems } = input;
+  const healthPath = input.healthPath ?? DEFAULT_HEALTH_PATH;
   const reasons: string[] = [];
   const notes: string[] = [];
   let status: HealthStatus = "HEALTHY";
@@ -78,11 +80,11 @@ export function evaluateHealth(input: HealthInput, thresholds: Thresholds): Heal
     worsen(
       "DOWN",
       probe.statusCode === null
-        ? `/health did not answer within ${probe.responseMs} ms.`
-        : `/health answered with status ${probe.statusCode}.`,
+        ? `${healthPath} did not answer within ${probe.responseMs} ms.`
+        : `${healthPath} answered with status ${probe.statusCode}.`,
     );
   } else if (probe.responseMs > thresholds.healthResponseMs) {
-    worsen("DEGRADED", `/health is slow: ${probe.responseMs} ms (threshold ${thresholds.healthResponseMs} ms).`);
+    worsen("DEGRADED", `${healthPath} is slow: ${probe.responseMs} ms (threshold ${thresholds.healthResponseMs} ms).`);
   }
 
   // 4. Resources. High use is a warning, never DOWN by itself.

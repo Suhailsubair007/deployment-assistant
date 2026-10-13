@@ -6,6 +6,8 @@ import { liveNames } from "@/agent/knownNames.ts";
 import { createMessageReader } from "@/agent/messageReader.ts";
 import { SessionStore } from "@/agent/sessionStore.ts";
 import { createApp } from "@/api/routes.ts";
+import { createBuildTools } from "@/build/buildTools.ts";
+import { createCommandRunner } from "@/build/commandRunner.ts";
 import { KubeGateway } from "@/cluster/kubeGateway.ts";
 import { ConfigError, loadConfig } from "@/config.ts";
 import { DEFAULT_CONFIG_PATH, DEFAULT_DB_PATH, DEFAULT_PORT, HOST, PAGE_FOLDER } from "@/constants/server.ts";
@@ -43,6 +45,16 @@ function start(): void {
     explainer,
     metrics: new MetricsService(gateway),
   });
+  // What turns a project folder into an image the cluster can run. Which programs that
+  // takes (docker and kind, or docker, aws and terraform) follows from the cluster in use.
+  const build = createBuildTools({
+    clusterName: gateway.clusterName(),
+    run: createCommandRunner(),
+    config,
+    awsProfile: process.env.AWS_BUILD_PROFILE || undefined,
+    stateBucket: process.env.TF_STATE_BUCKET || undefined,
+    owner: process.env.TF_OWNER || undefined,
+  });
   const deployments = new DeploymentService({
     gateway,
     history,
@@ -51,6 +63,7 @@ function start(): void {
     registry,
     explainer,
     imageRegistry: process.env.IMAGE_REGISTRY || undefined,
+    build,
   });
   const reader = createMessageReader({
     known: liveNames(config, registry),

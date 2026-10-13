@@ -4,6 +4,7 @@ import { test } from "node:test";
 import { loadConfig } from "@/config.ts";
 import {
   ClusterUnreachableError,
+  CommandFailedError,
   DeployInProgressError,
   ForbiddenError,
   InvalidRequestError,
@@ -14,7 +15,9 @@ import { FailureExplainer } from "@/services/failureExplainer.ts";
 import { HistoryStore } from "@/services/historyStore.ts";
 import { OperationStore } from "@/services/operationStore.ts";
 import { ServiceRegistry } from "@/services/serviceRegistry.ts";
+import type { BuildTools } from "@/types/build.ts";
 import type { ServiceSpec } from "@/types/service.ts";
+import { FakeBuildTools } from "./helpers/fakeBuildTools.ts";
 import { FakeGateway } from "./helpers/fakeGateway.ts";
 
 const STAGING = { environment: "staging", app: "sample-app" };
@@ -23,7 +26,7 @@ const STAGING = { environment: "staging", app: "sample-app" };
  * A service wired to a pretend cluster. Waiting is replaced by a clock the test
  * controls, so a "180 second" rollout finishes at once.
  */
-function setup(options: { imageRegistry?: string; sleep?: (ms: number) => Promise<void> } = {}) {
+function setup(options: { imageRegistry?: string; build?: BuildTools; sleep?: (ms: number) => Promise<void> } = {}) {
   const gateway = new FakeGateway();
   const history = new HistoryStore(":memory:", "fake-cluster");
   const operations = new OperationStore();
@@ -38,6 +41,7 @@ function setup(options: { imageRegistry?: string; sleep?: (ms: number) => Promis
     registry,
     explainer: new FailureExplainer(gateway),
     imageRegistry: options.imageRegistry,
+    build: options.build,
     sleep:
       options.sleep ??
       (async (ms) => {
@@ -471,4 +475,274 @@ test("a service saved for staging cannot be deployed to prod", async () => {
     service.planDeploy({ environment: "prod", app: "orders-api", version: "v1" }),
     new InvalidRequestError('I don\'t know an app called "orders-api". I know: sample-app.'),
   );
+});
+
+// ---- Services built from a project folder ----
+
+const FOLDER = "/Users/asha/code/orders-api";
+/** What the chat's questions hand over: the settings, before any image was built. */
+const NEW_SERVICE: ServiceSpec = { ...ORDERS_API, folder: FOLDER };
+
+function setupWithBuild(options: { registry?: string; withInfra?: boolean } = {}) {
+  const build = new FakeBuildTools(options);
+  return { ...setup({ build }), build };
+}
+
+test("planning a new service picks version v1 and changes nothing", async () => {
+  const { service, gateway, registry, build } = setupWithBuild();
+
+  const plan = await service.planCreate(NEW_SERVICE);
+
+  assert.equal(plan.action, "create");
+  assert.equal(plan.image, "orders-api:v1");
+  assert.equal(plan.buildFrom, FOLDER);
+  assert.equal(plan.currentImage, null);
+  assert.equal(plan.replicas, 2);
+  assert.equal(plan.spec?.lastVersion, 1);
+  assert.deepEqual(gateway.writes, []);
+  assert.deepEqual(build.calls, []);
+  assert.equal(registry.find("staging", "orders-api"), null);
+});
+
+test("Confirm on a new service answers at once, while the image is still being built", async () => {
+  const { service, gateway, registry, build } = setupWithBuild();
+  const release = build.hold("build");
+
+  const { operation, done } = await service.execute(await service.planCreate(NEW_SERVICE), "asha");
+
+  assert.equal(operation.state, "running");
+  assert.deepEqual(operation.stages, ["build", "publish", "pods"]);
+  assert.equal(operation.stage, "build");
+  assert.deepEqual(gateway.writes, []);
+  // The answers are kept from now on, whatever happens to the build.
+  assert.equal(registry.find("staging", "orders-api")?.port, 3000);
+
+  release();
+  await done;
+});
+
+test("a new service is built, handed to the cluster and only then deployed with its settings", async () => {
+  const { service, gateway, history, build } = setupWithBuild();
+
+  const { operation, done } = await service.execute(await service.planCreate(NEW_SERVICE), "asha");
+  await done;
+
+  assert.deepEqual(build.calls, [`build ${FOLDER} orders-api:v1`, "publish orders-api:v1"]);
+  assert.deepEqual(gateway.writes, ["applyService staging orders-api", "applyDeployment staging orders-api:v1 x2"]);
+  const podSpec = gateway.manifests.get("staging/orders-api")?.spec as {
+    template: { spec: { containers: Record<string, unknown>[] } };
+  };
+  assert.deepEqual(podSpec.template.spec.containers[0].env, [{ name: "NODE_ENV", value: "production" }]);
+  assert.equal(operation.state, "succeeded");
+  assert.equal(operation.stage, "pods");
+  assert.equal(operation.message, "2/2 pods ready. Deployment ID: dep-001");
+  const record = history.latest("staging", "orders-api");
+  assert.equal(record?.action, "create");
+  assert.equal(record?.status, "succeeded");
+  assert.equal(record?.previousImage, null);
+});
+
+test("on a cluster with an image registry, the repository is prepared first and the image carries the registry", async () => {
+  const { service, build } = setupWithBuild({ registry: "123456789012.dkr.ecr.ap-south-1.amazonaws.com/demo", withInfra: true });
+  const image = "123456789012.dkr.ecr.ap-south-1.amazonaws.com/demo/orders-api:v1";
+
+  const plan = await service.planCreate(NEW_SERVICE);
+  const { operation, done } = await service.execute(plan, "asha");
+  await done;
+
+  assert.equal(plan.image, image);
+  assert.deepEqual(operation.stages, ["repository", "build", "publish", "pods"]);
+  assert.deepEqual(build.calls, ["ensure orders-api", `build ${FOLDER} ${image}`, `publish ${image}`]);
+});
+
+test("a build that fails ends the change, applies nothing, frees the environment and keeps the settings", async () => {
+  const { service, gateway, history, registry, build } = setupWithBuild();
+  build.failNext("build", new CommandFailedError('"docker build" failed: COPY failed: file not found'));
+
+  const { operation, done } = await service.execute(await service.planCreate(NEW_SERVICE), "asha");
+  await done;
+
+  assert.equal(operation.state, "failed");
+  assert.equal(operation.stage, "build");
+  assert.equal(
+    operation.message,
+    'Deployment dep-001 failed while building the image: "docker build" failed: COPY failed: file not found ' +
+      'Fix it, then type "deploy orders-api to staging" to try again.',
+  );
+  assert.deepEqual(gateway.writes, []);
+  assert.equal(history.latest("staging", "orders-api")?.status, "failed");
+  history.assertFree("staging");
+  assert.equal(registry.find("staging", "orders-api")?.lastVersion, 1);
+});
+
+test("a failure while the image is handed to the cluster is reported for that stage", async () => {
+  const { service, build } = setupWithBuild();
+  build.failNext("publish", new CommandFailedError('"kind load" failed: no nodes found'));
+
+  const { operation, done } = await service.execute(await service.planCreate(NEW_SERVICE), "asha");
+  await done;
+
+  assert.equal(operation.stage, "publish");
+  assert.match(operation.message, /failed while uploading the image: "kind load" failed: no nodes found/);
+});
+
+test("deploying a folder service again builds the next version; after a failed build too", async () => {
+  const { service, registry, build } = setupWithBuild();
+  build.failNext("build", new CommandFailedError('"docker build" failed: oops'));
+  await (await service.execute(await service.planCreate(NEW_SERVICE), "asha")).done;
+
+  const plan = await service.planRebuild({ environment: "staging", app: "orders-api" });
+  await (await service.execute(plan, "asha")).done;
+
+  assert.equal(plan.action, "deploy");
+  assert.equal(plan.image, "orders-api:v2");
+  assert.equal(plan.buildFrom, FOLDER);
+  assert.equal(plan.currentImage, null);
+  assert.equal(registry.find("staging", "orders-api")?.lastVersion, 2);
+  assert.equal(build.calls.at(-1), "publish orders-api:v2");
+});
+
+test("a rebuild of a running service keeps its replicas and names what runs now", async () => {
+  const { service, gateway, registry } = setupWithBuild();
+  registry.save({ ...NEW_SERVICE, lastVersion: 1 });
+  gateway.seed("staging", "orders-api", "orders-api:v1", 3);
+
+  const plan = await service.planRebuild({ environment: "staging", app: "orders-api" });
+
+  assert.equal(plan.image, "orders-api:v2");
+  assert.equal(plan.currentImage, "orders-api:v1");
+  assert.equal(plan.replicas, 3);
+});
+
+test("a service that is not built from a folder cannot be rebuilt: it needs a version", async () => {
+  const { service } = setupWithBuild();
+
+  await assert.rejects(
+    service.planRebuild(STAGING),
+    new InvalidRequestError(
+      "sample-app is not built from a folder. Name the version to deploy, for example: deploy sample-app version v2 to staging",
+    ),
+  );
+});
+
+test("another change to the environment is refused while a build is running", async () => {
+  const { service, build } = setupWithBuild();
+  const release = build.hold("build");
+  const { done } = await service.execute(await service.planCreate(NEW_SERVICE), "asha");
+
+  const other = await service.planDeploy({ ...STAGING, version: "v2" });
+  await assert.rejects(service.execute(other, "ravi"), DeployInProgressError);
+
+  release();
+  await done;
+});
+
+test("a name that is already a service in that environment is refused", async () => {
+  const { service, registry } = setupWithBuild();
+  registry.save(ORDERS_API);
+
+  await assert.rejects(
+    service.planCreate(NEW_SERVICE),
+    new InvalidRequestError("There is already a service called orders-api in staging."),
+  );
+});
+
+test("a name that a deployment the assistant did not create already uses is refused", async () => {
+  const { service, gateway } = setupWithBuild();
+  gateway.seed("staging", "orders-api", "someone-elses:1", 1);
+
+  await assert.rejects(
+    service.planCreate(NEW_SERVICE),
+    new InvalidRequestError(
+      "A deployment called orders-api already runs in staging, and I did not create it. Pick another name.",
+    ),
+  );
+});
+
+test("on a cluster the assistant cannot build for, creating a service is refused with the reason", async () => {
+  const { service } = setup();
+
+  await assert.rejects(
+    service.planCreate(NEW_SERVICE),
+    new InvalidRequestError(
+      "I can build images only for a kind cluster or an EKS cluster, and this cluster is neither.",
+    ),
+  );
+});
+
+// ---- Changing a service's settings ----
+
+/** orders-api v1 runs in staging with 2 pods and is in the registry. */
+function setupRunningService() {
+  const all = setupWithBuild();
+  all.registry.save({ ...NEW_SERVICE, lastVersion: 1 });
+  all.gateway.seed("staging", "orders-api", "orders-api:v1", 2);
+  return all;
+}
+
+const MORE_MEMORY: ServiceSpec = {
+  ...NEW_SERVICE,
+  lastVersion: 1,
+  resources: { requests: { cpu: "200m", memory: "64Mi" }, limits: { cpu: "300m", memory: "512Mi" } },
+};
+
+test("a settings change keeps the image and the replicas, and shows the settings before and after", async () => {
+  const { service, gateway } = setupRunningService();
+
+  const plan = await service.planConfigure(MORE_MEMORY);
+
+  assert.equal(plan.action, "configure");
+  assert.equal(plan.image, "orders-api:v1");
+  assert.equal(plan.currentImage, "orders-api:v1");
+  assert.equal(plan.replicas, 2);
+  assert.equal(plan.spec?.resources.limits.memory, "512Mi");
+  assert.equal(plan.previousSpec?.resources.limits.memory, "96Mi");
+  assert.equal(plan.buildFrom, undefined);
+  assert.deepEqual(gateway.writes, []);
+});
+
+test("a confirmed settings change is applied, stored and recorded, without building", async () => {
+  const { service, gateway, history, registry, build } = setupRunningService();
+
+  const { operation, done } = await service.execute(await service.planConfigure(MORE_MEMORY), "asha");
+  await done;
+
+  const podSpec = gateway.manifests.get("staging/orders-api")?.spec as {
+    template: { spec: { containers: { resources: unknown }[] } };
+  };
+  assert.deepEqual(podSpec.template.spec.containers[0].resources, MORE_MEMORY.resources);
+  assert.equal(registry.find("staging", "orders-api")?.resources.limits.memory, "512Mi");
+  assert.equal(history.latest("staging", "orders-api")?.action, "configure");
+  assert.equal(operation.state, "succeeded");
+  assert.equal(operation.stages, undefined);
+  assert.deepEqual(build.calls, []);
+});
+
+test("a settings change that changes nothing, or on a service that is not running, is refused", async () => {
+  const { service, registry } = setupRunningService();
+
+  await assert.rejects(
+    service.planConfigure({ ...NEW_SERVICE, lastVersion: 1 }),
+    new InvalidRequestError("orders-api in staging has exactly these settings already. Nothing to change."),
+  );
+
+  registry.save({ ...NEW_SERVICE, environment: "prod", lastVersion: 1 });
+  await assert.rejects(
+    service.planConfigure({ ...MORE_MEMORY, environment: "prod" }),
+    new InvalidRequestError(
+      'orders-api is not running in prod yet, so there is nothing to change. To start it, type: deploy orders-api to prod',
+    ),
+  );
+});
+
+test("roll back after a settings change still returns to the image before the last deploy", async () => {
+  const { service, registry } = setupRunningService();
+  registry.save({ ...NEW_SERVICE, lastVersion: 1 });
+  await (await service.execute(await service.planRebuild({ environment: "staging", app: "orders-api" }), "asha")).done;
+  await (await service.execute(await service.planConfigure({ ...MORE_MEMORY, lastVersion: 2 }), "asha")).done;
+
+  const plan = await service.planRollback({ environment: "staging", app: "orders-api" });
+
+  assert.equal(plan.image, "orders-api:v1");
+  assert.equal(plan.currentImage, "orders-api:v2");
 });

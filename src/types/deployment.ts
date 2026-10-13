@@ -3,6 +3,7 @@ import type { HistoryStore } from "@/services/historyStore.ts";
 import type { OperationStore } from "@/services/operationStore.ts";
 import type { ServiceRegistry } from "@/services/serviceRegistry.ts";
 import type { ClusterGateway } from "@/types/cluster.ts";
+import type { BuildTools } from "@/types/build.ts";
 import type { AppConfig, ResourceAmounts } from "@/types/config.ts";
 import type { EnvVar, ServiceSpec } from "@/types/service.ts";
 
@@ -43,8 +44,10 @@ export interface DeploymentServiceDeps {
   /** Where each service's settings come from. */
   registry: ServiceRegistry;
   explainer: FailureExplainer;
-  /** Put in front of image names, for example an ECR registry. Leave empty for local images. */
+  /** Put in front of image names, for example an ECR registry. Left out, it is the registry of the build tools. */
   imageRegistry?: string;
+  /** What builds an image from a project folder. Left out, nothing can be built. */
+  build?: BuildTools;
   /** How to wait between two rollout checks. Tests replace this so they do not really wait. */
   sleep?: (ms: number) => Promise<void>;
   /** The current time in milliseconds. Tests replace this together with `sleep`. */

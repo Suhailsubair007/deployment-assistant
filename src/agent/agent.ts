@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 
+import { parseMessage } from "@/agent/intentParser.ts";
 import { liveNames } from "@/agent/knownNames.ts";
 import { createRuleReader } from "@/agent/messageReader.ts";
 import {
@@ -14,8 +15,10 @@ import {
   formatTopPod,
   formatUsage,
 } from "@/agent/replyFormatter.ts";
+import { answerWizard, startCreate, startEdit } from "@/agent/serviceWizard.ts";
 import type { SessionStore } from "@/agent/sessionStore.ts";
 import {
+  BUILD_STARTED,
   CANCELLED,
   CONFIRMATION_EXPIRED,
   CONFIRMATION_INVALID,
@@ -24,15 +27,18 @@ import {
   MAX_HISTORY_ROWS,
   NOT_UNDERSTOOD,
   STARTED_MESSAGES,
+  WIZARD_BUSY,
 } from "@/constants/agent.ts";
 import { AppError, InvalidRequestError } from "@/errors.ts";
 import type { DeploymentService } from "@/services/deploymentService.ts";
 import { formatDeploymentId } from "@/services/historyStore.ts";
 import type { HistoryStore } from "@/services/historyStore.ts";
+import type { ServiceRegistry } from "@/services/serviceRegistry.ts";
 import type { StatusService } from "@/services/statusService.ts";
 import type { AgentDeps, AgentReply, KnownNames, MessageReader, ParsedMessage, Session } from "@/types/agent.ts";
 import type { AppConfig } from "@/types/config.ts";
 import type { ChangePlan, HistoryFilter } from "@/types/deployment.ts";
+import type { Wizard, WizardContext, WizardStep } from "@/types/wizard.ts";
 
 export class Agent {
   private readonly config: AppConfig;
@@ -40,6 +46,7 @@ export class Agent {
   private readonly statuses: StatusService;
   private readonly history: HistoryStore;
   private readonly sessions: SessionStore;
+  private readonly registry: ServiceRegistry;
   private readonly reader: MessageReader;
   private readonly now: () => number;
   private readonly known: KnownNames;
@@ -50,6 +57,7 @@ export class Agent {
     this.statuses = deps.statuses;
     this.history = deps.history;
     this.sessions = deps.sessions;
+    this.registry = deps.registry;
     this.now = deps.now ?? Date.now;
     this.known = liveNames(deps.config, deps.registry);
     this.reader = deps.reader ?? createRuleReader(this.known);
@@ -61,6 +69,17 @@ export class Agent {
   async handleMessage(sessionId: string, text: string, user: string): Promise<AgentReply> {
     const session = this.sessions.get(sessionId);
     this.sessions.addMessage(session, { role: "user", text, at: new Date(this.now()) });
+
+    // While the questions for a service are open, every message is an answer to the
+    // current one. It is checked by fixed rules and never handed to the message reader,
+    // so a folder path or a variable is not sent to OpenAI.
+    if (session.wizard !== undefined) {
+      const wizard = session.wizard;
+      const reply = await this.asReply(() => this.continueWizard(session, wizard, text));
+      this.record(session, reply);
+      return reply;
+    }
+
     // The reader is told about an open question, so it can read "the staging one" as its answer.
     const reading = await this.reader.read(text, session.awaiting);
     const reply = await this.asReply(() => this.respond(session, reading.parsed, text, user));
@@ -88,8 +107,9 @@ export class Agent {
         throw new InvalidRequestError(CONFIRMATION_EXPIRED);
       }
       const { operation } = await this.deployments.execute(pending.plan, user);
+      const started = pending.plan.buildFrom === undefined ? STARTED_MESSAGES[pending.plan.action] : BUILD_STARTED;
       return {
-        text: `${STARTED_MESSAGES[pending.plan.action]} (${formatDeploymentId(operation.deploymentId)}).`,
+        text: `${started} (${formatDeploymentId(operation.deploymentId)}).`,
         operationId: operation.id,
       };
     });
@@ -152,6 +172,12 @@ export class Agent {
         }
         return { text: formatHistory(this.history.list(filter), filter) };
       }
+
+      case "create":
+        session.awaiting = undefined;
+        // Said now, not after ten answers, when images cannot be built for this cluster.
+        this.deployments.assertCanBuild();
+        return this.startAsking(session, startCreate(this.wizardContext(), { environment: request.environment }));
     }
 
     const apps = this.known.apps;
@@ -162,9 +188,33 @@ export class Agent {
     const environments = this.oneOf(this.known.environments);
 
     switch (request.intent) {
+      case "edit": {
+        const { environment } = request;
+        if (environment === undefined) {
+          return this.ask(
+            session,
+            { ...request, app },
+            `Change the settings of ${app} in which environment: ${environments}?`,
+          );
+        }
+        session.awaiting = undefined;
+        session.app = app;
+        session.environment = environment;
+        const { spec } = this.registry.resolve(environment, app);
+        return this.startAsking(session, startEdit(spec, this.wizardContext()));
+      }
+
       case "deploy": {
         const { version, environment } = request;
         const pieces = { ...request, app };
+        // A service built from a folder needs no version: a deploy builds the next one.
+        if (version === undefined && this.isBuiltFromFolder(app, environment)) {
+          if (environment === undefined) {
+            return this.ask(session, pieces, `Build and deploy ${app} to which environment: ${environments}?`);
+          }
+          session.awaiting = undefined;
+          return this.offer(session, await this.deployments.planRebuild({ environment, app }));
+        }
         if (version === undefined && environment === undefined) {
           return this.ask(session, pieces, `Which version of ${app} should I deploy, and to which environment (${environments})?`);
         }
@@ -235,6 +285,60 @@ export class Agent {
       return notDeployed;
     }
     return request.intent === "status" ? formatFullStatus(status) : formatHealth(status);
+  }
+
+  // ---- The questions for creating or changing a service ----
+
+  /** Takes one answer. A bad answer gets the question again; the last answer gets the summary to confirm. */
+  private async continueWizard(session: Session, wizard: Wizard, text: string): Promise<AgentReply> {
+    const step = answerWizard(wizard, text, this.wizardContext());
+
+    if (step.kind === "ask" && step.rejected === true && parseMessage(text, this.known).intent !== null) {
+      // Not an answer but another request, for example "deploy sample-app version v2 to staging".
+      // It is not carried out: one thing at a time. The questions stay where they are.
+      return { text: `${WIZARD_BUSY[wizard.kind]}\n${step.question}` };
+    }
+    if (step.kind !== "done") {
+      return this.keepAsking(session, step);
+    }
+
+    session.wizard = undefined;
+    const plan =
+      wizard.kind === "create"
+        ? await this.deployments.planCreate(step.spec)
+        : await this.deployments.planConfigure(step.spec);
+    return this.offer(session, plan);
+  }
+
+  /** Opens the questions with the first one. */
+  private startAsking(session: Session, first: WizardStep): AgentReply {
+    if (first.kind === "done") {
+      // The questions always start with a question; this cannot happen.
+      throw new Error("The questions for a service ended before the first one was asked.");
+    }
+    return this.keepAsking(session, first);
+  }
+
+  /** A question keeps the questions open and is the reply; "cancel" closes them. */
+  private keepAsking(session: Session, step: Exclude<WizardStep, { kind: "done" }>): AgentReply {
+    session.wizard = step.kind === "ask" ? step.wizard : undefined;
+    return { text: step.text };
+  }
+
+  /** What the questions may know about the world: names, defaults, and a look at a project folder. */
+  private wizardContext(): WizardContext {
+    return {
+      environments: this.known.environments,
+      defaults: this.config.serviceDefaults,
+      exists: (environment, name) => this.registry.find(environment, name) !== null,
+      inspect: (path) => this.deployments.inspectProject(path),
+    };
+  }
+
+  /** True when the service's images are built from a project folder (in that environment, or in any). */
+  private isBuiltFromFolder(app: string, environment: string | undefined): boolean {
+    const environments = environment === undefined ? this.known.environments : [environment];
+    return environments.some((name) => this.registry.find(name, app)?.folder != null);
   }
 
   /** Joins a message with what came before it. */

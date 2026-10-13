@@ -8,7 +8,7 @@ export const CANCELLED = "Cancelled. Nothing was changed.";
 // It lists what the assistant can do and blames nobody: the message may be off-topic,
 // or a real request in words the reader does not know.
 export const NOT_UNDERSTOOD =
-  "I'm not sure how to help with that. I can deploy, roll back and scale your apps, and show their health, CPU and memory, a full status, the nodes and past deployments.";
+  "I'm not sure how to help with that. I can create a service from a project folder, deploy, roll back, scale and edit your apps, and show their health, CPU and memory, a full status, the nodes and past deployments.";
 export const RULES_DESCRIPTION =
   "Messages are read by built-in rules. The LLM is not configured (OPENAI_API_KEY is not set).";
 
@@ -27,7 +27,17 @@ export const STARTED_MESSAGES: Record<ChangePlan["action"], string> = {
 // Said instead of the line above when the image is built first.
 export const BUILD_STARTED = "Build started";
 
+// Said when another request is typed while the questions for a service are being asked.
+// Nothing else is carried out until the questions are answered or cancelled.
+export const WIZARD_BUSY: Record<"create" | "edit", string> = {
+  create:
+    "You are in the middle of creating a service, so I did not act on that. Answer the question below, or type cancel to stop.",
+  edit: "You are in the middle of changing a service, so I did not act on that. Answer the question below, or type cancel to stop.",
+};
+
 export const INTENT_RULES: [IntentName, RegExp][] = [
+  ["create", /\bcreate\b|\bnew (?:service|app)\b|\badd (?:a |an )?(?:new )?(?:service|app)\b/],
+  ["edit", /\bedit\b|\bsettings\b|\bconfigure\b/],
   ["rollback", /\broll\s?-?back\b|\brevert\b|\bundo\b/],
   ["scale", /\bscale\b|\breplicas?\b/],
   ["history", /\bdeployments\b|\bhistory\b/],
