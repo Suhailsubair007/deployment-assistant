@@ -60,16 +60,27 @@ module "eks" {
     metrics-server = {}
   }
 
-  # The assistant calls GET /health through the Kubernetes API, so the control plane
-  # must be able to open a connection to the pods on the port the app listens on.
-  # The module opens only the ports Kubernetes itself needs (kubelet, webhooks), so
-  # each app port is added here: from the control plane only, and nothing wider.
+  # The assistant's health check calls each service's health path through the
+  # Kubernetes API server, so the control plane must be able to open a connection to
+  # a pod on the port its app listens on. The module opens only the ports Kubernetes
+  # itself needs (kubelet, webhooks), so the app ports are added here.
+  #
+  # Why a range and not a list of ports: services are created from the chat, and the
+  # user chooses the port there. A list would mean changing this stack for every new
+  # service, and the assistant must never change this stack. The chat accepts only
+  # ports 1024 to 65535, so the rule opens exactly that range and nothing below it.
+  #
+  # Who may use it: only the cluster's own control plane (the cluster security
+  # group). No IP range, nothing from the internet, no other machine in the VPC.
+  # The control plane can already reach the kubelet on port 10250 on every node, and
+  # the kubelet controls every pod on its node. So letting the control plane call the
+  # apps' own ports as well gives it very little that it did not already have.
   node_security_group_additional_rules = {
-    for port in var.app_ports : "ingress_cluster_app_${port}" => {
-      description                   = "Cluster API to app pods on port ${port}, for the health check"
+    ingress_cluster_app_ports = {
+      description                   = "Cluster API to app pods on ports 1024 to 65535, for the health check"
       protocol                      = "tcp"
-      from_port                     = port
-      to_port                       = port
+      from_port                     = 1024
+      to_port                       = 65535
       type                          = "ingress"
       source_cluster_security_group = true
     }

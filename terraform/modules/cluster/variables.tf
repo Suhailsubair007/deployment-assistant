@@ -48,11 +48,6 @@ variable "node_max_size" {
   type        = number
 }
 
-variable "app_ports" {
-  description = "Ports the deployed apps listen on. The control plane may reach the worker nodes on these ports."
-  type        = list(number)
-}
-
 variable "assistant_group" {
   description = "Kubernetes group the assistant's IAM role is mapped to."
   type        = string

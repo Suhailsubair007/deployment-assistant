@@ -100,17 +100,6 @@ variable "namespaces" {
   default     = ["staging", "prod"]
 }
 
-variable "app_ports" {
-  description = "Ports the deployed apps listen on (the port in config/app.config.yaml). The assistant calls GET /health through the Kubernetes API, so the control plane must be allowed to reach the pods on these ports."
-  type        = list(number)
-  default     = [8080]
-
-  validation {
-    condition     = alltrue([for port in var.app_ports : port >= 1 && port <= 65535])
-    error_message = "Every port must be between 1 and 65535."
-  }
-}
-
 variable "assistant_trusted_principal_arns" {
   description = "IAM users or roles allowed to assume the assistant's role. Leave empty to allow only the identity that runs Terraform."
   type        = list(string)

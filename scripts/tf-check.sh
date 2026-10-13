@@ -10,10 +10,19 @@ cd "${TERRAFORM_DIR}"
 echo "==> terraform fmt"
 terraform fmt -check -recursive
 
-# "validate" needs the providers and modules, but not the state: -backend=false skips S3.
-for stack in bootstrap .; do
+# The three stacks: the state bucket, the cluster, and the per-service image repository.
+# "validate" needs the providers and modules of a stack, but not its state.
+for stack in bootstrap . service; do
   echo "==> terraform validate (${stack})"
-  terraform -chdir="${stack}" init -backend=false -input=false >/dev/null
+  if [ -f "${stack}/.terraform/terraform.tfstate" ]; then
+    # A real "terraform init" has already connected this folder to the state bucket,
+    # so its providers and modules are in place. init is left out here on purpose:
+    # in a connected folder even "init -backend=false" reads the state from S3.
+    echo "    already connected to a state bucket: init skipped, so nothing is read from S3"
+  else
+    # -backend=false downloads the providers and modules and leaves S3 alone.
+    terraform -chdir="${stack}" init -backend=false -input=false >/dev/null
+  fi
   terraform -chdir="${stack}" validate
 done
 
