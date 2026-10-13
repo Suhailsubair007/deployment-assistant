@@ -30,6 +30,23 @@ export interface AppDefaults {
   resources: { requests: ResourceAmounts; limits: ResourceAmounts };
 }
 
+/** The default answers when a service is created from the chat. */
+export interface ServiceDefaults {
+  port: number;
+  healthPath: string;
+  replicas: number;
+  maxReplicas: number;
+  resources: { requests: ResourceAmounts; limits: ResourceAmounts };
+}
+
+/** Settings for building images from project folders. */
+export interface BuildSettings {
+  /** Only folders inside one of these may be built. "~" is the home folder of whoever runs the assistant. */
+  allowedRoots: string[];
+  /** Give up on one build, upload or Terraform run after this long. */
+  timeoutSeconds: number;
+}
+
 export interface Timeouts {
   rolloutSeconds: number;
   healthRequestMs: number;
@@ -51,6 +68,8 @@ export interface AppConfig {
   timeouts: Timeouts;
   thresholds: { default: Thresholds; overrides: Record<string, Partial<Thresholds>> };
   llm: LlmSettings;
+  serviceDefaults: ServiceDefaults;
+  build: BuildSettings;
 }
 
 export type Section = Record<string, unknown>;

@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import { parse } from "yaml";
 
 import { ConfigError, loadConfig, thresholdsFor } from "@/config.ts";
 
@@ -128,5 +129,118 @@ test("an llm timeout that is not a positive number is rejected by name", () => {
   assert.throws(
     () => loadConfig(writeTempConfig(broken)),
     new ConfigError("Config error: llm.requestTimeoutMs must be a positive number."),
+  );
+});
+
+// ---- The serviceDefaults section ----
+
+const BUILT_IN_SERVICE_DEFAULTS = {
+  port: 8080,
+  healthPath: "/health",
+  replicas: 2,
+  maxReplicas: 10,
+  resources: { requests: { cpu: "100m", memory: "128Mi" }, limits: { cpu: "500m", memory: "256Mi" } },
+};
+
+test("the shipped config file writes out the serviceDefaults and build sections", () => {
+  const written = parse(readFileSync(SHIPPED_CONFIG, "utf8"));
+
+  assert.deepEqual(Object.keys(written.serviceDefaults), ["port", "healthPath", "replicas", "maxReplicas", "resources"]);
+  assert.deepEqual(Object.keys(written.build), ["allowedRoots", "timeoutSeconds"]);
+});
+
+test("the shipped config file gives the default answers for a new service", () => {
+  const config = loadConfig(SHIPPED_CONFIG);
+
+  assert.deepEqual(config.serviceDefaults, BUILT_IN_SERVICE_DEFAULTS);
+});
+
+test("a config file without a serviceDefaults section still loads, with the built-in default answers", () => {
+  const config = loadConfig(writeTempConfig(VALID_CONFIG));
+
+  assert.deepEqual(config.serviceDefaults, BUILT_IN_SERVICE_DEFAULTS);
+});
+
+test("a serviceDefaults section may set only some values; the others keep their defaults", () => {
+  const partial = `${VALID_CONFIG}\nserviceDefaults: { port: 3000, resources: { limits: { cpu: "1", memory: 512Mi } } }\n`;
+
+  const config = loadConfig(writeTempConfig(partial));
+
+  assert.deepEqual(config.serviceDefaults, {
+    ...BUILT_IN_SERVICE_DEFAULTS,
+    port: 3000,
+    resources: { requests: { cpu: "100m", memory: "128Mi" }, limits: { cpu: "1", memory: "512Mi" } },
+  });
+});
+
+test("a default port that is not a positive number is rejected by name", () => {
+  const broken = `${VALID_CONFIG}\nserviceDefaults: { port: web }\n`;
+
+  assert.throws(
+    () => loadConfig(writeTempConfig(broken)),
+    new ConfigError("Config error: serviceDefaults.port must be a positive number."),
+  );
+});
+
+test("a default health path that is not text is rejected by name", () => {
+  const broken = `${VALID_CONFIG}\nserviceDefaults: { healthPath: 200 }\n`;
+
+  assert.throws(
+    () => loadConfig(writeTempConfig(broken)),
+    new ConfigError("Config error: serviceDefaults.healthPath must be text."),
+  );
+});
+
+test("a default amount of memory that is missing is rejected by name", () => {
+  const broken = `${VALID_CONFIG}\nserviceDefaults: { resources: { requests: { cpu: 100m } } }\n`;
+
+  assert.throws(
+    () => loadConfig(writeTempConfig(broken)),
+    new ConfigError("Config error: serviceDefaults.resources.requests.memory must be text."),
+  );
+});
+
+// ---- The build section ----
+
+test("the shipped config file builds only inside the home folder and gives a build 15 minutes", () => {
+  const config = loadConfig(SHIPPED_CONFIG);
+
+  assert.deepEqual(config.build, { allowedRoots: ["~"], timeoutSeconds: 900 });
+});
+
+test("a config file without a build section still loads, with the built-in build settings", () => {
+  const config = loadConfig(writeTempConfig(VALID_CONFIG));
+
+  assert.deepEqual(config.build, { allowedRoots: ["~"], timeoutSeconds: 900 });
+});
+
+test("a build section may name its own folders and keep the default timeout", () => {
+  const config = loadConfig(writeTempConfig(`${VALID_CONFIG}\nbuild: { allowedRoots: ["~/code", /srv/projects] }\n`));
+
+  assert.deepEqual(config.build, { allowedRoots: ["~/code", "/srv/projects"], timeoutSeconds: 900 });
+});
+
+const notListsOfFolders: [what: string, yaml: string][] = [
+  ["one folder that is not in a list", "~/code"],
+  ["an empty list", "[]"],
+  ["a list with a number in it", "[~/code, 5]"],
+];
+for (const [what, yaml] of notListsOfFolders) {
+  test(`build.allowedRoots given as ${what} is rejected by name`, () => {
+    const broken = `${VALID_CONFIG}\nbuild: { allowedRoots: ${yaml} }\n`;
+
+    assert.throws(
+      () => loadConfig(writeTempConfig(broken)),
+      new ConfigError("Config error: build.allowedRoots must be a list of folders."),
+    );
+  });
+}
+
+test("a build timeout that is not a positive number is rejected by name", () => {
+  const broken = `${VALID_CONFIG}\nbuild: { timeoutSeconds: 0 }\n`;
+
+  assert.throws(
+    () => loadConfig(writeTempConfig(broken)),
+    new ConfigError("Config error: build.timeoutSeconds must be a positive number."),
   );
 });

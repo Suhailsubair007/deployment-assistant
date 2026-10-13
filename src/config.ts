@@ -1,14 +1,16 @@
 import { existsSync, readFileSync } from "node:fs";
 import { parse } from "yaml";
 
-import { LLM_DEFAULTS, THRESHOLD_KEYS } from "@/constants/config.ts";
+import { BUILD_DEFAULTS, LLM_DEFAULTS, SERVICE_DEFAULTS, THRESHOLD_KEYS } from "@/constants/config.ts";
 import type {
   AppConfig,
   AppDefaults,
+  BuildSettings,
   EnvironmentConfig,
   LlmSettings,
   ResourceAmounts,
   Section,
+  ServiceDefaults,
   Thresholds,
   Timeouts,
 } from "@/types/config.ts";
@@ -151,6 +153,57 @@ function readLlm(section: Section): LlmSettings {
   };
 }
 
+/** Every value is optional: one that is left out keeps its built-in default. */
+function readServiceDefaults(section: Section): ServiceDefaults {
+  const path = "serviceDefaults";
+  const resources = asSection(section.resources ?? {}, `${path}.resources`);
+  return {
+    port: section.port === undefined ? SERVICE_DEFAULTS.port : readNumber(section, "port", path),
+    healthPath:
+      section.healthPath === undefined ? SERVICE_DEFAULTS.healthPath : readText(section, "healthPath", path),
+    replicas: section.replicas === undefined ? SERVICE_DEFAULTS.replicas : readNumber(section, "replicas", path),
+    maxReplicas:
+      section.maxReplicas === undefined ? SERVICE_DEFAULTS.maxReplicas : readNumber(section, "maxReplicas", path),
+    resources: {
+      requests:
+        resources.requests === undefined
+          ? SERVICE_DEFAULTS.resources.requests
+          : readResourceAmounts(resources, "requests", `${path}.resources`),
+      limits:
+        resources.limits === undefined
+          ? SERVICE_DEFAULTS.resources.limits
+          : readResourceAmounts(resources, "limits", `${path}.resources`),
+    },
+  };
+}
+
+/** Returns the value as a list of folder paths, or fails naming where it should be. */
+function readFolders(parent: Section, key: string, path: string): string[] {
+  const value = parent[key];
+  if (!Array.isArray(value) || value.length === 0) {
+    fail(`${path}.${key} must be a list of folders.`);
+  }
+  const folders: string[] = [];
+  for (const item of value) {
+    if (typeof item !== "string" || item.trim() === "") {
+      fail(`${path}.${key} must be a list of folders.`);
+    }
+    folders.push(item);
+  }
+  return folders;
+}
+
+function readBuild(section: Section): BuildSettings {
+  return {
+    allowedRoots:
+      section.allowedRoots === undefined ? BUILD_DEFAULTS.allowedRoots : readFolders(section, "allowedRoots", "build"),
+    timeoutSeconds:
+      section.timeoutSeconds === undefined
+        ? BUILD_DEFAULTS.timeoutSeconds
+        : readNumber(section, "timeoutSeconds", "build"),
+  };
+}
+
 /** Reads and checks the config file. Throws ConfigError with a message the editor can act on. */
 export function loadConfig(path: string): AppConfig {
   if (!existsSync(path)) {
@@ -174,6 +227,9 @@ export function loadConfig(path: string): AppConfig {
     },
     // The llm section is optional.
     llm: readLlm(asSection(root.llm ?? {}, "llm")),
+    // So are these two: a service can be created from the chat without them.
+    serviceDefaults: readServiceDefaults(asSection(root.serviceDefaults ?? {}, "serviceDefaults")),
+    build: readBuild(asSection(root.build ?? {}, "build")),
   };
 }
 

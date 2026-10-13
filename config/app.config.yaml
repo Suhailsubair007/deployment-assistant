@@ -23,6 +23,28 @@ apps:
         cpu: 500m
         memory: 256Mi
 
+# The suggested answers when a service is created from the chat ("create a service").
+# Typing "default" at a question takes the value from here.
+serviceDefaults:
+  port: 8080 # used when the Dockerfile names no port
+  healthPath: /health # must answer 200 when the app is ready
+  replicas: 2 # copies started the first time the service is deployed
+  maxReplicas: 10 # the assistant refuses to scale beyond this
+  resources:
+    requests: # reserved for each copy
+      cpu: 100m
+      memory: 128Mi
+    limits: # the most each copy may use
+      cpu: 500m
+      memory: 256Mi
+
+# Building images from project folders.
+build:
+  # Only folders inside one of these may be built. "~" is the home folder of whoever runs the assistant.
+  allowedRoots:
+    - "~" # keep the quotes: without them YAML reads ~ as "no value"
+  timeoutSeconds: 900 # give up on one build, upload or Terraform run after this long
+
 timeouts:
   rolloutSeconds: 180 # give up waiting for a rollout after this long
   healthRequestMs: 3000 # give up on one GET /health call after this long
