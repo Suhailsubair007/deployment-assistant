@@ -83,19 +83,27 @@ Type `create a service`. The assistant asks one thing at a time. Type `default` 
 | Replicas, then the most replicas | 2, then 10 | The second is only the limit for `scale`. There is no autoscaler |
 | Variables | none | `NAME=value` separated by spaces. Plain text only: no passwords or keys |
 
-To try it with the sample app's own folder:
+To try it, use the second small app in this repository, [greeter-app/](greeter-app/). It listens on port 3000 and says a greeting it reads from a variable.
 
 1. `create a service`
-2. the full path of the `sample-app` folder in this repository, for example `~/code/deployment-assistant/sample-app`
-3. `hello-api`, then `staging`, then `default` six times
-4. `GREETING=hi`
-5. Read the summary and click **Confirm**
+2. the full path of the `greeter-app` folder, for example `~/code/deployment-assistant/greeter-app`
+3. `default` for the name (`greeter-app`), then `staging`
+4. `default` for the port (3000, read from the Dockerfile), and `default` five more times
+5. `GREETING=Namaste`
+6. Read the summary and click **Confirm**
 
 The progress line then shows the image being built, handed to the cluster, and the pods starting. Afterwards:
 
-- `edit hello-api in staging` changes one setting (CPU, memory, port, health path, variables or the scale limit) and keeps the image.
-- `deploy hello-api to staging` builds the folder again as the next version (`v2`, `v3`, ...).
-- `deploy hello-api version v1 to staging`, `scale hello-api in staging to 3` and `roll back hello-api in staging` work as they do for `sample-app`.
+- `edit greeter-app in staging` changes one setting (CPU, memory, port, health path, variables or the scale limit) and keeps the image.
+- `deploy greeter-app to staging` builds the folder again as the next version (`v2`, `v3`, ...).
+- `deploy greeter-app version v1 to staging`, `scale greeter-app in staging to 3` and `roll back greeter-app in staging` work as they do for `sample-app`.
+
+To see the greeting the service answers with:
+
+```bash
+kubectl --context kind-deploy-assistant get --raw \
+  "/api/v1/namespaces/staging/services/greeter-app:80/proxy/"
+```
 
 Three things to know:
 
@@ -237,6 +245,7 @@ src/constants/   every fixed value, one file per area
 config/          thresholds, timeouts, environments
 k8s/             manifest templates and local cluster files
 sample-app/      the small app that gets deployed
+greeter-app/     a second small app, for trying "create a service" (port 3000, reads a variable)
 terraform/       the EKS cluster, and terraform/service: one image repository per service
 tests/           unit tests
 ```
