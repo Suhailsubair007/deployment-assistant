@@ -40,14 +40,14 @@ spec:
           # Ready = may receive traffic. A pod that fails this is taken out of the Service.
           readinessProbe:
             httpGet:
-              path: /health
+              path: "{{healthPath}}"
               port: {{port}}
             initialDelaySeconds: 2
             periodSeconds: 5
           # Alive = still working. A pod that fails this is restarted.
           livenessProbe:
             httpGet:
-              path: /health
+              path: "{{healthPath}}"
               port: {{port}}
             initialDelaySeconds: 10
             periodSeconds: 10

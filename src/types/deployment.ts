@@ -3,6 +3,7 @@ import type { HistoryStore } from "@/services/historyStore.ts";
 import type { OperationStore } from "@/services/operationStore.ts";
 import type { ClusterGateway } from "@/types/cluster.ts";
 import type { AppConfig, AppDefaults, ResourceAmounts } from "@/types/config.ts";
+import type { EnvVar } from "@/types/service.ts";
 
 /** A change that has been worked out but not carried out yet. Shown to the user for confirmation. */
 export interface ChangePlan {
@@ -88,6 +89,10 @@ export interface DeployParams {
   /** Port the app listens on inside the container. */
   port: number;
   resources: { requests: ResourceAmounts; limits: ResourceAmounts };
+  /** The path both probes call. Left out, it is "/health". */
+  healthPath?: string;
+  /** Variables handed to the app when it starts. Left out, there are none. */
+  env?: EnvVar[];
 }
 
 export type OperationState = "running" | "succeeded" | "failed";

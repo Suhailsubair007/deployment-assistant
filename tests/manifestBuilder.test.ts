@@ -108,3 +108,55 @@ test("a resource amount Kubernetes would not understand is refused", () => {
 
   assert.throws(() => buildManifests({ ...params, resources: broken }), InvalidRequestError);
 });
+
+// ---- Settings of a service created from the chat ----
+
+test("a service with its own health path is probed on that path", () => {
+  const { deployment } = buildManifests({ ...params, port: 3000, healthPath: "/api/healthz" });
+
+  assert.deepEqual(at(deployment, `${CONTAINER}.readinessProbe.httpGet`), { path: "/api/healthz", port: 3000 });
+  assert.deepEqual(at(deployment, `${CONTAINER}.livenessProbe.httpGet`), { path: "/api/healthz", port: 3000 });
+});
+
+test("a health path that could break the manifest is refused", () => {
+  for (const healthPath of ["health", "/he alth", '/health"\nfoo: bar', ""]) {
+    assert.throws(() => buildManifests({ ...params, healthPath }), InvalidRequestError, `path "${healthPath}"`);
+  }
+});
+
+test("variables are handed to the container in the order they were given", () => {
+  const env = [
+    { name: "NODE_ENV", value: "production" },
+    { name: "LOG_LEVEL", value: "info" },
+  ];
+
+  const { deployment } = buildManifests({ ...params, env });
+
+  assert.deepEqual(at(deployment, `${CONTAINER}.env`), env);
+});
+
+test("a variable's value is carried exactly, whatever characters it holds", () => {
+  const awkward = 'say "hi" to {{name}}: yes\nsecond line # not a comment';
+
+  const { deployment } = buildManifests({ ...params, env: [{ name: "GREETING", value: awkward }] });
+
+  assert.equal(at(deployment, `${CONTAINER}.env.0.value`), awkward);
+  // The rest of the manifest is untouched by it.
+  assert.equal(at(deployment, "metadata.name"), "sample-app");
+});
+
+test("a deployment without variables has no env section", () => {
+  const { deployment } = buildManifests(params);
+
+  assert.equal(at(deployment, `${CONTAINER}.env`), undefined);
+});
+
+test("a variable name the shell could not use is refused", () => {
+  for (const name of ["2FAST", "MY-VAR", "has space", ""]) {
+    assert.throws(
+      () => buildManifests({ ...params, env: [{ name, value: "x" }] }),
+      (error: unknown) => error instanceof InvalidRequestError && error.message.includes("not a valid variable name"),
+      `name "${name}"`,
+    );
+  }
+});

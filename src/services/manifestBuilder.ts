@@ -3,11 +3,13 @@ import { join } from "node:path";
 import { parse } from "yaml";
 
 import { APP_NAME_PATTERN, IMAGE_REPOSITORY_PATTERN, SERVICE_PORT, IMAGE_TAG_PATTERN, TEMPLATE_FOLDER } from "@/constants/deployment.ts";
+import { DEFAULT_HEALTH_PATH, ENV_NAME_PATTERN, HEALTH_PATH_PATTERN } from "@/constants/service.ts";
 import { InvalidRequestError } from "@/errors.ts";
 import { parseCpuToMillicores, parseMemoryToBytes } from "@/services/units.ts";
 import type { Manifest } from "@/types/cluster.ts";
 import type { ResourceAmounts } from "@/types/config.ts";
 import type { DeployParams } from "@/types/deployment.ts";
+import type { EnvVar } from "@/types/service.ts";
 
 /** Splits "registry:5000/app:v2" into the repository and the version after the last colon. */
 function splitImage(image: string): { repository: string; tag: string | null } {
@@ -63,6 +65,18 @@ function checkParams(params: DeployParams): void {
   }
   checkQuantities(params.resources.requests);
   checkQuantities(params.resources.limits);
+  if (params.healthPath !== undefined && !HEALTH_PATH_PATTERN.test(params.healthPath)) {
+    throw new InvalidRequestError(
+      `"${params.healthPath}" is not a valid health check path. It starts with "/" and has no spaces, for example /health.`,
+    );
+  }
+  for (const variable of params.env ?? []) {
+    if (!ENV_NAME_PATTERN.test(variable.name)) {
+      throw new InvalidRequestError(
+        `"${variable.name}" is not a valid variable name. Use letters, digits and underscores, not starting with a digit.`,
+      );
+    }
+  }
 }
 
 /** Replaces every {{key}} in the template with its value, then reads the result as YAML. */
@@ -79,6 +93,18 @@ function render(templateFile: string, values: Record<string, string | number>): 
   return parse(text) as Manifest;
 }
 
+/**
+ * Puts the variables on the container. They are set on the finished object, not pasted
+ * into the template text, because a value may hold any character at all.
+ */
+function addVariables(deployment: Manifest, env: EnvVar[]): void {
+  if (env.length === 0) {
+    return;
+  }
+  const spec = deployment.spec as { template: { spec: { containers: Record<string, unknown>[] } } };
+  spec.template.spec.containers[0].env = env.map(({ name, value }) => ({ name, value }));
+}
+
 /** Throws InvalidRequestError when a value is not acceptable. */
 export function buildManifests(params: DeployParams): { deployment: Manifest; service: Manifest } {
   checkParams(params);
@@ -89,13 +115,13 @@ export function buildManifests(params: DeployParams): { deployment: Manifest; se
     replicas: params.replicas,
     port: params.port,
     servicePort: SERVICE_PORT,
+    healthPath: params.healthPath ?? DEFAULT_HEALTH_PATH,
     cpuRequest: params.resources.requests.cpu,
     memoryRequest: params.resources.requests.memory,
     cpuLimit: params.resources.limits.cpu,
     memoryLimit: params.resources.limits.memory,
   };
-  return {
-    deployment: render("deployment.yaml", values),
-    service: render("service.yaml", values),
-  };
+  const deployment = render("deployment.yaml", values);
+  addVariables(deployment, params.env ?? []);
+  return { deployment, service: render("service.yaml", values) };
 }
