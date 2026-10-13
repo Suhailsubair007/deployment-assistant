@@ -14,6 +14,7 @@ import { HistoryStore } from "@/services/historyStore.ts";
 import { MetricsService } from "@/services/metricsService.ts";
 import { OperationStore } from "@/services/operationStore.ts";
 import { StatusService } from "@/services/statusService.ts";
+import { formatStartupBanner, formatStartupError } from "@/startupBanner.ts";
 
 const port = Number(process.env.PORT || DEFAULT_PORT);
 
@@ -53,16 +54,22 @@ function start(): void {
   });
 
   app.listen(port, HOST, () => {
-    console.log(`Deployment Assistant is running at http://${HOST}:${port}`);
-    console.log(`Kubernetes context: ${gateway.contextName()}`);
-    console.log(`Environments: ${Object.keys(config.environments).join(", ")}`);
-    console.log(reader.description);
+    const warnings: string[] = [];
     if (!existsSync(join(PAGE_FOLDER, "index.html"))) {
-      console.log('The page is not built yet. Run "npm run build", then reload the browser.');
+      warnings.push('The page is not built yet. Run "npm run build", then reload the browser.');
     }
     if (interrupted > 0) {
-      console.log(`${interrupted} deployment(s) were left unfinished by the last run and are now marked "interrupted".`);
+      warnings.push(`${interrupted} deployment(s) were left unfinished by the last run and are now marked "interrupted".`);
     }
+    console.log(
+      formatStartupBanner({
+        url: `http://${HOST}:${port}`,
+        context: gateway.contextName(),
+        environments: Object.keys(config.environments),
+        reader: reader.description,
+        warnings,
+      }),
+    );
   });
 }
 
@@ -71,7 +78,7 @@ try {
 } catch (error) {
   // A problem with the config file is the reader's to fix: show the sentence, not a stack trace.
   if (error instanceof ConfigError) {
-    console.error(error.message);
+    console.error(formatStartupError(error.message));
     process.exit(1);
   }
   throw error;
