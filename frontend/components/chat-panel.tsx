@@ -5,6 +5,7 @@ import type { FormEvent } from "react";
 import { ArrowRight } from "lucide-react";
 
 import { AgentMessage, UserMessage, WorkingMessage } from "@/components/message";
+import { SuggestionChips } from "@/components/suggestion-chips";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -50,6 +51,12 @@ export function ChatPanel({ environments, onOperationFinished }: ChatPanelProps)
     onOperationFinished();
   }, [scrollToNewest, onOperationFinished]);
 
+  // A click on an example only fills the message box: the user can still change it before pressing Enter.
+  const fillMessageBox = useCallback((example: string) => {
+    setDraft(example);
+    inputRef.current?.focus();
+  }, []);
+
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
     const message = draft.trim();
@@ -74,7 +81,13 @@ export function ChatPanel({ environments, onOperationFinished }: ChatPanelProps)
           item.role === "user" ? (
             <UserMessage key={index} item={item} />
           ) : (
-            <AgentMessage key={index} item={item} onDecide={decide} onOperationFinished={handleOperationFinished} />
+            <AgentMessage
+              key={index}
+              item={item}
+              onDecide={decide}
+              onSuggest={fillMessageBox}
+              onOperationFinished={handleOperationFinished}
+            />
           ),
         )}
         {isWorking && <WorkingMessage />}
@@ -84,20 +97,7 @@ export function ChatPanel({ environments, onOperationFinished }: ChatPanelProps)
         {suggestions.length > 0 && (
           <div aria-label="Example requests" className="flex flex-wrap items-center gap-1.5">
             <span className="mr-0.5 text-xs text-muted-foreground">Try</span>
-            {suggestions.map((example) => (
-              <Button
-                key={example}
-                variant="outline"
-                className="h-[26px] rounded-full bg-sunken px-2.5 text-[12.5px] font-normal text-muted-foreground duration-200 hover:-translate-y-px hover:border-primary hover:bg-accent hover:text-foreground"
-                // A click only fills the message box: the user can still change it before pressing Enter.
-                onClick={() => {
-                  setDraft(example);
-                  inputRef.current?.focus();
-                }}
-              >
-                {example}
-              </Button>
-            ))}
+            <SuggestionChips examples={suggestions} onPick={fillMessageBox} />
           </div>
         )}
 

@@ -8,9 +8,11 @@ import {
   formatHistory,
   formatNodes,
   formatPlan,
+  formatSuggestions,
   formatTopPod,
   formatUsage,
 } from "@/agent/replyFormatter.ts";
+import { parseMessage } from "@/agent/intentParser.ts";
 import type { PodInfo } from "@/types/cluster.ts";
 import type { ChangePlan } from "@/types/deployment.ts";
 import type { DeploymentRecord } from "@/types/deployment.ts";
@@ -332,4 +334,23 @@ test("help ends with how messages are read, when that is given", () => {
   const text = formatHelp({ environments: ["staging", "prod"], apps: ["sample-app"] }, "Messages are read by built-in rules.");
 
   assert.equal(text.split("\n").at(-1), "Messages are read by built-in rules.");
+});
+
+// ---- Requests to try ----
+
+test("the requests to try use the first environment and the first app", () => {
+  assert.deepEqual(formatSuggestions({ environments: ["staging", "prod"], apps: ["sample-app"] }), [
+    "is staging healthy?",
+    "deploy sample-app version v2 to staging",
+    "show my last 5 deployments",
+    "what can you do?",
+  ]);
+});
+
+test("every request to try is one the built-in rules understand", () => {
+  const known = { environments: ["staging", "prod"], apps: ["sample-app"] };
+
+  for (const example of formatSuggestions(known)) {
+    assert.notEqual(parseMessage(example, known).intent, null, example);
+  }
 });

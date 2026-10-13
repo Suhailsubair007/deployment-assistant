@@ -310,13 +310,37 @@ test("an unreachable cluster is reported as a normal reply", async () => {
   assert.equal((await say("is staging healthy?")).text, 'I can\'t reach the cluster (context "fake-cluster").');
 });
 
-test("a message the agent does not understand gets the list of things it can do", async () => {
+test("a message the agent does not understand gets one sentence that says what it can do", async () => {
   const { say } = await setup();
 
   const reply = await say("tell me a joke");
 
-  assert.ok(reply.text.startsWith("I didn't understand that."), reply.text);
-  assert.ok(reply.text.includes("deploy sample-app version v2 to staging"), reply.text);
+  assert.equal(
+    reply.text,
+    "I'm not sure how to help with that. I can deploy, roll back and scale your apps, and tell you how they are doing.",
+  );
+});
+
+test("a message the agent does not understand comes with a few requests to try instead", async () => {
+  const { say } = await setup();
+
+  const reply = await say("tell me a joke");
+
+  assert.deepEqual(reply.suggestions, [
+    "is staging healthy?",
+    "deploy sample-app version v2 to staging",
+    "show my last 5 deployments",
+    "what can you do?",
+  ]);
+});
+
+test("the requests to try are kept with the conversation, so a page reload still shows them", async () => {
+  const { say, sessions } = await setup();
+
+  const reply = await say("tell me a joke");
+
+  assert.deepEqual(sessions.get(TAB).messages.at(-1)?.suggestions, reply.suggestions);
+  assert.equal(reply.suggestions?.length, 4);
 });
 
 // ---- History ----
@@ -473,10 +497,18 @@ test("help says how messages are read: by the rules when no LLM is configured", 
   );
 });
 
-test("help and the did-not-understand reply name the reader that is in use", async () => {
-  const { reader } = scriptedReader([{ parsed: { intent: "help" } }, { parsed: { intent: null } }]);
+test("help names the reader that is in use", async () => {
+  const { reader } = scriptedReader([{ parsed: { intent: "help" } }]);
   const { say } = await setup(reader);
 
   assert.ok((await say("what can you do")).text.endsWith("\nMessages are read by a test reader."));
-  assert.ok((await say("tell me a joke")).text.endsWith("\nMessages are read by a test reader."));
+});
+
+test("the did-not-understand reply does not name the reader: that is for help and the terminal", async () => {
+  const { reader } = scriptedReader([{ parsed: { intent: null } }]);
+  const { say } = await setup(reader);
+
+  const reply = await say("tell me a joke");
+
+  assert.ok(!reply.text.includes("Messages are read by"), reply.text);
 });

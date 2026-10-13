@@ -255,3 +255,20 @@ export function formatHelp(known: KnownNames, howRead?: string): string {
     ...(howRead === undefined ? [] : [howRead]),
   ].join("\n");
 }
+
+// ---- Requests to try ----
+
+/**
+ * A few requests offered when a message was not understood. Each one is a message
+ * the user could have typed; the last one asks for the full list.
+ */
+export function formatSuggestions(known: KnownNames): string[] {
+  const app = known.apps[0] ?? "my-app";
+  const first = known.environments[0] ?? "staging";
+  return [
+    `is ${first} healthy?`,
+    `deploy ${app} version v2 to ${first}`,
+    "show my last 5 deployments",
+    "what can you do?",
+  ];
+}

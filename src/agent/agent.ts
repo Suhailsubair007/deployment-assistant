@@ -9,6 +9,7 @@ import {
   formatNodes,
   formatPlan,
   formatProtectedWarning,
+  formatSuggestions,
   formatTopPod,
   formatUsage,
 } from "@/agent/replyFormatter.ts";
@@ -116,7 +117,8 @@ export class Agent {
   private async respond(session: Session, parsed: ParsedMessage, text: string, user: string): Promise<AgentReply> {
     const request = this.combine(session, parsed, text);
     if (request === null || request.intent === null) {
-      return { text: `${NOT_UNDERSTOOD}\n${formatHelp(this.known, this.reader.description)}` };
+      // One sentence and a few requests to click. The full list is the answer to "help".
+      return { text: NOT_UNDERSTOOD, suggestions: formatSuggestions(this.known) };
     }
 
     if (request.unknownEnvironment !== undefined && request.environment === undefined) {

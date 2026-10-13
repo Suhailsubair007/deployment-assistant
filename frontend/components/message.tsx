@@ -8,6 +8,7 @@ import { Buddy } from "@/components/buddy";
 import { Confirmation } from "@/components/confirmation";
 import { ReplyText } from "@/components/reply-text";
 import { Rollout } from "@/components/rollout";
+import { SuggestionChips } from "@/components/suggestion-chips";
 import { useOperation } from "@/hooks/use-operation";
 import { moodOfReply } from "@/lib/buddy-mood";
 import type { BuddyMood, ChatItem, RolloutState } from "@/lib/types";
@@ -118,12 +119,14 @@ function RolloutMessage({ item, operationId, onFinished }: RolloutMessageProps) 
 interface AgentMessageProps {
   item: ChatItem;
   onDecide: (actionId: string, choice: "confirm" | "cancel") => void;
+  /** Called with a suggested request that was clicked. */
+  onSuggest: (example: string) => void;
   onOperationFinished: () => void;
 }
 
-/** An agent reply: its text, then Confirm and Cancel, or the progress of a change. */
-export function AgentMessage({ item, onDecide, onOperationFinished }: AgentMessageProps) {
-  const { action, operationId } = item;
+/** An agent reply: its text, then Confirm and Cancel, requests to try, or the progress of a change. */
+export function AgentMessage({ item, onDecide, onSuggest, onOperationFinished }: AgentMessageProps) {
+  const { action, operationId, suggestions } = item;
   if (operationId !== undefined) {
     return <RolloutMessage item={item} operationId={operationId} onFinished={onOperationFinished} />;
   }
@@ -132,6 +135,15 @@ export function AgentMessage({ item, onDecide, onOperationFinished }: AgentMessa
       <ReplyText text={item.text} />
       {action !== undefined && (
         <Confirmation action={action} note={item.actionNote} onDecide={(choice) => onDecide(action.id, choice)} />
+      )}
+      {suggestions !== undefined && suggestions.length > 0 && (
+        // Sent with a reply that could not help: a way forward that takes one click.
+        <div className="mt-2.5 grid animate-line-in gap-1.5" style={{ animationDelay: "90ms" }}>
+          <span className="text-xs text-muted-foreground">Try one of these</span>
+          <div className="flex flex-wrap gap-1.5">
+            <SuggestionChips examples={suggestions} onPick={onSuggest} chipClassName="bg-card text-foreground" />
+          </div>
+        </div>
       )}
     </AgentRow>
   );

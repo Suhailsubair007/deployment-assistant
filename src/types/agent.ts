@@ -11,6 +11,8 @@ export interface AgentReply {
   action?: { id: string; warning: string | null };
   /** Set when a change has started: the browser follows its progress by this ID. */
   operationId?: string;
+  /** Requests the user could send instead. The browser shows them as buttons that fill the message box. */
+  suggestions?: string[];
 }
 
 export interface AgentDeps {
@@ -87,6 +89,8 @@ export interface ChatMessage {
   action?: { id: string; warning: string | null };
   /** Set on an agent message about a change that was started; progress is read by this ID. */
   operationId?: string;
+  /** Set on an agent message that offers requests to try instead. */
+  suggestions?: string[];
 }
 
 export interface PendingAction {
