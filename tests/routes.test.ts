@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { request as httpRequest } from "node:http";
 import type { Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { after, test } from "node:test";
@@ -69,7 +70,21 @@ async function setup() {
     return { status: response.status, body: await response.json() };
   }
 
-  return { gateway, history, call };
+  /** One GET with the Host header a browser would send for another site's name. fetch cannot set that header. */
+  function getAs(host: string, path: string): Promise<Answer> {
+    return new Promise((resolve, reject) => {
+      const { port } = server.address() as AddressInfo;
+      const sent = httpRequest({ host: "127.0.0.1", port, path, headers: { Host: host } }, (response) => {
+        let text = "";
+        response.on("data", (chunk) => (text += chunk));
+        response.on("end", () => resolve({ status: response.statusCode ?? 0, body: JSON.parse(text) }));
+      });
+      sent.on("error", reject);
+      sent.end();
+    });
+  }
+
+  return { gateway, history, call, getAs };
 }
 
 test("a chat message is answered, and a change comes back with something to confirm", async () => {
@@ -207,4 +222,18 @@ test("an unexpected server error shows a reference and none of its details", asy
   assert.match(answer.body.error, /^Something went wrong on the server \(reference [0-9a-f]{8}\)/);
   assert.ok(!JSON.stringify(answer.body).includes("boom"));
   assert.ok(!JSON.stringify(answer.body).includes("secret"));
+});
+
+test("a request that names another host is refused: only this machine's own names are answered", async () => {
+  const { getAs } = await setup();
+
+  const fromElsewhere = await getAs("evil.example:3000", "/api/status");
+  const local = await getAs("localhost:3000", "/api/status");
+
+  assert.equal(fromElsewhere.status, 400);
+  assert.equal(
+    fromElsewhere.body.error,
+    "This address is not one the assistant answers to. Open it as http://127.0.0.1 or http://localhost.",
+  );
+  assert.equal(local.status, 200);
 });

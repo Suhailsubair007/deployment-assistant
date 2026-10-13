@@ -3,6 +3,7 @@ import type { ErrorRequestHandler, Express, Request } from "express";
 
 import { toUserError } from "@/api/errorMapper.ts";
 import {
+  ALLOWED_HOSTS,
   ANONYMOUS_USER,
   JSON_BODY_LIMIT,
   MAX_MESSAGE_LENGTH,
@@ -32,6 +33,20 @@ function userNameOf(request: Request): string {
 export function createApp(deps: AppDeps): Express {
   const { agent, operations, statuses, sessions } = deps;
   const app = express();
+
+  // The page is only ever opened as 127.0.0.1 or localhost. A request that names another
+  // host comes from a web page elsewhere that pointed its own name at this machine. The
+  // assistant can build and deploy, so such a request is refused before anything is read.
+  app.use((request, _response, next) => {
+    const host = (request.get("host") ?? "").replace(/:\d+$/, "");
+    if (!ALLOWED_HOSTS.has(host)) {
+      throw new InvalidRequestError(
+        "This address is not one the assistant answers to. Open it as http://127.0.0.1 or http://localhost.",
+      );
+    }
+    next();
+  });
+
   app.use(express.json({ limit: JSON_BODY_LIMIT }));
 
   // A typed message.
