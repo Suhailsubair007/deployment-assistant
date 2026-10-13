@@ -45,6 +45,7 @@ module "cluster" {
   node_desired_size  = var.node_desired_size
   node_max_size      = var.node_max_size
 
+  app_ports       = var.app_ports
   assistant_group = local.assistant_group
   assistant_trusted_principal_arns = (
     length(var.assistant_trusted_principal_arns) > 0

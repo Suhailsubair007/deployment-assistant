@@ -110,6 +110,7 @@ To look around as an administrator instead, run `$(terraform output -raw update_
 | `single_nat_gateway` | `true` | One NAT gateway, or one per zone when `false` |
 | `log_retention_days` | 30 | How long control plane logs are kept |
 | `namespaces` | `["staging", "prod"]` | Namespaces to create |
+| `app_ports` | `[8080]` | Ports the apps listen on; the control plane may reach the nodes on them, for the `/health` check |
 | `assistant_trusted_principal_arns` | the identity running Terraform | Who may assume the assistant's role |
 | `create_sample_app_repository` | `true` | Create the ECR repository |
 

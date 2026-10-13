@@ -60,6 +60,21 @@ module "eks" {
     metrics-server = {}
   }
 
+  # The assistant calls GET /health through the Kubernetes API, so the control plane
+  # must be able to open a connection to the pods on the port the app listens on.
+  # The module opens only the ports Kubernetes itself needs (kubelet, webhooks), so
+  # each app port is added here: from the control plane only, and nothing wider.
+  node_security_group_additional_rules = {
+    for port in var.app_ports : "ingress_cluster_app_${port}" => {
+      description                   = "Cluster API to app pods on port ${port}, for the health check"
+      protocol                      = "tcp"
+      from_port                     = port
+      to_port                       = port
+      type                          = "ingress"
+      source_cluster_security_group = true
+    }
+  }
+
   eks_managed_node_groups = {
     default = {
       instance_types = [var.node_instance_type]
