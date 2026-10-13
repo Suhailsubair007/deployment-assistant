@@ -1,8 +1,8 @@
 import { splitStatusWords } from "@/lib/reply-lines.ts";
-import type { BuddyMood } from "@/lib/types.ts";
+import type { RolloMood } from "@/lib/types.ts";
 
-/** Buddy's face next to a reply. Only the headline counts: it carries the overall status. */
-export function moodOfReply(text: string, isError: boolean): BuddyMood {
+/** Rollo's face next to a reply. Only the headline counts: it carries the overall status. */
+export function moodOfReply(text: string, isError: boolean): RolloMood {
   if (isError) {
     return "worried";
   }

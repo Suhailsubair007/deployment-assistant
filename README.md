@@ -159,7 +159,7 @@ The tests replace the cluster with an in-memory fake ([tests/helpers/fakeGateway
 
 The OpenAI path is tested without a key and without the network: the tests give the workflow a pretend model answer, and replace the network call under the real OpenAI library. They cover the checks on what the model says, every way a call can fail, and the fallback to the rules.
 
-The page's logic that needs no browser is tested too ([frontend/tests/](frontend/tests/)): the API call and its error sentences, how a reply is cut into lines and tables, the Confirm and Cancel notes, the pod counts, the steps of a rollout, and the mood of Buddy (the face in the chat). The React components themselves have no automated tests; they were checked by hand in the browser.
+The page's logic that needs no browser is tested too ([frontend/tests/](frontend/tests/)): the API call and its error sentences, how a reply is cut into lines and tables, the Confirm and Cancel notes, the pod counts, the steps of a rollout, where Rollo stands on the rollout track, and the mood of Rollo (the robot in the chat). The React components themselves have no automated tests; they were checked by hand in the browser.
 
 ## Settings
 

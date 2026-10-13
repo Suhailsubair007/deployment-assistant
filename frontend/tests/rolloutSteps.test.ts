@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { buildRolloutSteps } from "@/lib/rollout-steps.ts";
+import { buildRolloutSteps, currentStep } from "@/lib/rollout-steps.ts";
 
 const statesOf = (steps: { state: string }[]) => steps.map((step) => step.state);
 
@@ -38,4 +38,17 @@ test("before the first count arrives, the pods step says it is waiting", () => {
 
 test("without a count, a change that is not running has no detail", () => {
   assert.equal(buildRolloutSteps("unknown", null)[1]?.detail, "");
+});
+
+test("the headline of a running or failed change is the pods step", () => {
+  assert.equal(currentStep(buildRolloutSteps("running", null))?.id, "pods");
+  assert.equal(currentStep(buildRolloutSteps("failed", { ready: 0, total: 3 }))?.id, "pods");
+});
+
+test("the headline of a change that succeeded is the last step", () => {
+  assert.equal(currentStep(buildRolloutSteps("succeeded", { ready: 3, total: 3 }))?.id, "finished");
+});
+
+test("the headline of a change the page lost contact with is the last step known to be done", () => {
+  assert.equal(currentStep(buildRolloutSteps("unknown", null))?.id, "sent");
 });

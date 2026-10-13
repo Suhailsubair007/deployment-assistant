@@ -4,14 +4,15 @@ import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { cn } from "cn";
 
-import { Buddy } from "@/components/buddy";
 import { Confirmation } from "@/components/confirmation";
 import { ReplyText } from "@/components/reply-text";
+import { Rollo } from "@/components/rollo";
 import { Rollout } from "@/components/rollout";
 import { SuggestionChips } from "@/components/suggestion-chips";
 import { useOperation } from "@/hooks/use-operation";
-import { moodOfReply } from "@/lib/buddy-mood";
-import type { BuddyMood, ChatItem, RolloutState } from "@/lib/types";
+import { ASSISTANT_NAME, MOOD_OF_ROLLOUT } from "@/lib/constants";
+import { moodOfReply } from "@/lib/rollo-mood";
+import type { ChatItem, RolloMood, RolloutState } from "@/lib/types";
 
 /** "18:42" */
 function formatClock(at: string): string {
@@ -20,8 +21,8 @@ function formatClock(at: string): string {
 
 function Meta({ author, at }: { author: string; at?: string }) {
   return (
-    <div className="flex gap-2 text-xs text-muted-foreground">
-      <span className="font-semibold text-foreground">{author}</span>
+    <div className="flex gap-2 px-1 text-xs text-muted-foreground">
+      <span className="font-bold text-foreground">{author}</span>
       {at !== undefined && <time dateTime={at}>{formatClock(at)}</time>}
     </div>
   );
@@ -43,9 +44,9 @@ export function UserMessage({ item }: { item: ChatItem }) {
     );
   }
   return (
-    <div className="flex max-w-[min(85%,640px)] animate-message-in flex-col items-end gap-1 self-end">
+    <div className="flex max-w-[min(85%,640px)] animate-message-in flex-col items-end gap-1.5 self-end">
       <Meta author="You" at={item.at} />
-      <div className="max-w-full rounded-[16px_16px_5px_16px] bg-primary px-3.5 py-2 leading-[1.55] whitespace-pre-wrap text-primary-foreground [overflow-wrap:anywhere]">
+      <div className="max-w-full rounded-[18px_18px_6px_18px] bg-linear-to-br from-primary to-primary-strong px-4 py-2.5 text-[14.5px] leading-[1.6] whitespace-pre-wrap text-primary-foreground shadow-soft [overflow-wrap:anywhere]">
         {item.text}
       </div>
     </div>
@@ -53,24 +54,24 @@ export function UserMessage({ item }: { item: ChatItem }) {
 }
 
 interface AgentRowProps {
-  mood: BuddyMood;
-  /** When it was said. Left out while Buddy is still working on the answer. */
+  mood: RolloMood;
+  /** When it was said. Left out while Rollo is still working on the answer. */
   at?: string;
   isError?: boolean;
   children: ReactNode;
 }
 
-/** Everything Buddy says has the same frame: its face on the left, then its name and the message. */
+/** Everything Rollo says has the same frame: its face on the left, then its name and the message. */
 function AgentRow({ mood, at, isError = false, children }: AgentRowProps) {
   return (
-    <div className="flex max-w-full items-start gap-2.5 self-start">
-      {/* Buddy does not fade in. An answer takes the place of "On it", so the face stays and only changes. */}
-      <Buddy mood={mood} className="mt-0.5 size-8" />
-      <div className="flex min-w-0 animate-message-in flex-col items-start gap-1">
-        <Meta author="Buddy" at={at} />
+    <div className="flex max-w-full items-start gap-3 self-start">
+      {/* Rollo does not fade in. An answer takes the place of "On it", so the face stays and only changes. */}
+      <Rollo mood={mood} className="mt-0.5 size-10" />
+      <div className="flex min-w-0 animate-message-in flex-col items-start gap-1.5">
+        <Meta author={ASSISTANT_NAME} at={at} />
         <div
           className={cn(
-            "max-w-full rounded-[5px_16px_16px_16px] border bg-sunken px-3.5 py-2.5 leading-[1.55] [overflow-wrap:anywhere]",
+            "max-w-full rounded-[6px_18px_18px_18px] border bg-card px-4 py-3 text-[14.5px] leading-[1.6] shadow-soft [overflow-wrap:anywhere]",
             isError && "border-down-solid bg-down-soft",
           )}
         >
@@ -81,13 +82,6 @@ function AgentRow({ mood, at, isError = false, children }: AgentRowProps) {
   );
 }
 
-const MOOD_OF_ROLLOUT: Record<RolloutState, BuddyMood> = {
-  running: "working",
-  succeeded: "happy",
-  failed: "worried",
-  unknown: "idle",
-};
-
 interface RolloutMessageProps {
   item: ChatItem;
   operationId: string;
@@ -95,11 +89,21 @@ interface RolloutMessageProps {
   onFinished: () => void;
 }
 
-/** A reply about a change that was started. It follows the change, and Buddy's face follows it too. */
+/** A reply about a change that was started. It follows the change, and Rollo's face follows it too. */
 function RolloutMessage({ item, operationId, onFinished }: RolloutMessageProps) {
   const { operation, error } = useOperation(operationId);
   const state: RolloutState = error !== null ? "unknown" : (operation?.state ?? "running");
   const isFinished = state === "succeeded" || state === "failed";
+
+  // After a page reload an old change is finished in the server's first answer. Only a
+  // change the page has seen running is live: Rollo glides along its track and celebrates.
+  const [isLive, setIsLive] = useState(false);
+  const isRunningOnServer = operation?.state === "running";
+  useEffect(() => {
+    if (isRunningOnServer) {
+      setIsLive(true);
+    }
+  }, [isRunningOnServer]);
 
   // An effect runs after the result is on screen, so the conversation can scroll down to it.
   useEffect(() => {
@@ -111,7 +115,12 @@ function RolloutMessage({ item, operationId, onFinished }: RolloutMessageProps) 
   return (
     <AgentRow mood={MOOD_OF_ROLLOUT[state]} at={item.at}>
       <ReplyText text={item.text} />
-      <Rollout state={state} progress={operation?.steps.at(-1) ?? ""} message={error ?? operation?.message ?? ""} />
+      <Rollout
+        state={state}
+        progress={operation?.steps.at(-1) ?? ""}
+        message={error ?? operation?.message ?? ""}
+        isLive={isLive}
+      />
     </AgentRow>
   );
 }
@@ -141,7 +150,7 @@ export function AgentMessage({ item, onDecide, onSuggest, onOperationFinished }:
         <div className="mt-2.5 grid animate-line-in gap-1.5" style={{ animationDelay: "90ms" }}>
           <span className="text-xs text-muted-foreground">Try one of these</span>
           <div className="flex flex-wrap gap-1.5">
-            <SuggestionChips examples={suggestions} onPick={onSuggest} chipClassName="bg-card text-foreground" />
+            <SuggestionChips examples={suggestions} onPick={onSuggest} chipClassName="bg-sunken text-foreground" />
           </div>
         </div>
       )}
@@ -155,7 +164,10 @@ const LATER_PHRASES = [
   { afterMs: 6000, text: "Still waiting for the cluster" },
 ];
 
-/** Shown while the server is working on an answer. */
+/** How long after the dot before it each of the three dots starts to hop. */
+const DOT_DELAYS_MS = [0, 140, 280];
+
+/** Shown while the server is working on an answer: Rollo thinks, and says what it is doing. */
 export function WorkingMessage() {
   const [phrase, setPhrase] = useState(FIRST_PHRASE);
 
@@ -166,9 +178,21 @@ export function WorkingMessage() {
 
   return (
     <AgentRow mood="working">
-      {/* A new key makes React draw the line again, so each new phrase rises in. */}
-      <div key={phrase} className="animate-line-in">
-        <span className="text-shimmer">{phrase}…</span>
+      <div className="flex items-center gap-2.5">
+        {/* A new key makes React draw the line again, so each new phrase rises in. */}
+        <div key={phrase} className="animate-line-in">
+          <span className="text-shimmer">{phrase}</span>
+        </div>
+        {/* The dots stay outside that line, so they keep hopping when the phrase changes. */}
+        <span aria-hidden="true" className="flex gap-1">
+          {DOT_DELAYS_MS.map((delayMs) => (
+            <i
+              key={delayMs}
+              className="size-1.5 animate-typing-dot rounded-full bg-primary"
+              style={{ animationDelay: `${delayMs}ms` }}
+            />
+          ))}
+        </span>
       </div>
     </AgentRow>
   );

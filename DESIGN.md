@@ -5,7 +5,7 @@
 ```mermaid
 flowchart TB
     subgraph browser["Browser"]
-        ui["Chat page<br/>messages, Confirm / Cancel, progress line, status panel"]
+        ui["Chat page<br/>messages, Confirm / Cancel, progress steps, status panel"]
     end
 
     subgraph backend["Backend, one Node.js process"]
@@ -72,7 +72,7 @@ flowchart TB
     apiserver --> metricsserver
 ```
 
-Each layer calls only the layer below it. The browser never talks to Kubernetes. The routes contain no logic. One folder, `src/cluster/`, is the only place that imports the Kubernetes client library; the services see a small interface (`ClusterGateway`) with plain data types.
+Each layer calls only the layer below it. The browser never talks to Kubernetes. The routes contain no logic. One folder, `src/cluster/`, is the only place that imports the Kubernetes client library; the services see a small interface (`ClusterGateway`, in `src/types/cluster.ts`) with plain data types.
 
 That one boundary pays for itself twice. The unit tests swap the gateway for an in-memory fake and run without a cluster, and a different cluster is just a different gateway.
 
@@ -86,7 +86,7 @@ A rollout can take minutes, so the Confirm request does not wait for it.
 
 1. `execute()` takes the lock, applies the manifests and returns an operation ID. This takes well under a second.
 2. A loop keeps running in the background of the same Node.js process. Every 2 seconds it reads the Deployment and its pods and records progress such as `2/3 pods ready`.
-3. The browser asks `GET /api/operations/:id` once a second and updates one line.
+3. The browser asks `GET /api/operations/:id` once a second and redraws three steps: change sent, pods starting (with one square per pod), rollout finished.
 
 Node.js stays responsive because every Kubernetes call is asynchronous: while one rollout waits, the process serves other requests.
 

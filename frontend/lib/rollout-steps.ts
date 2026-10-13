@@ -17,3 +17,9 @@ export function buildRolloutSteps(state: RolloutState, pods: PodProgress | null)
     { id: "finished", title: "Rollout finished", detail: "", state: state === "succeeded" ? "done" : "pending" },
   ];
 }
+
+/** The step to show as the headline: the one that is in progress or failed, or else the last one that is done. */
+export function currentStep(steps: RolloutStep[]): RolloutStep | undefined {
+  const unfinished = steps.find((step) => step.state === "active" || step.state === "failed");
+  return unfinished ?? steps.findLast((step) => step.state === "done");
+}

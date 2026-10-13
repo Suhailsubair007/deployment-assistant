@@ -42,8 +42,8 @@ export interface EnvironmentSummary {
   lastUpdate: string | null;
 }
 
-/** How Buddy looks: resting, busy, pleased after good news, or uneasy after a problem. */
-export type BuddyMood = "idle" | "working" | "happy" | "worried";
+/** How Rollo looks: resting, busy, pleased after good news, or uneasy after a problem. */
+export type RolloMood = "idle" | "working" | "happy" | "worried";
 
 /** One message on screen. */
 export interface ChatItem {

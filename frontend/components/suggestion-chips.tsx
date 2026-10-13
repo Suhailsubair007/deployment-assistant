@@ -17,7 +17,7 @@ export function SuggestionChips({ examples, onPick, chipClassName }: SuggestionC
       key={example}
       variant="outline"
       className={cn(
-        "h-[26px] rounded-full bg-sunken px-2.5 text-[12.5px] font-normal text-muted-foreground duration-200 hover:-translate-y-px hover:border-primary hover:bg-accent hover:text-foreground",
+        "h-7 rounded-full bg-card px-3 text-[12.5px] font-medium text-muted-foreground duration-200 hover:-translate-y-0.5 hover:border-primary hover:bg-accent hover:text-foreground hover:shadow-soft",
         chipClassName,
       )}
       onClick={() => onPick(example)}

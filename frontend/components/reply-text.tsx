@@ -27,7 +27,7 @@ function FactsTable({ rows, style }: { rows: FactsLine[]; style: CSSProperties }
   }
   return (
     <div
-      className="my-1.5 max-w-full animate-line-in overflow-x-auto rounded-lg border bg-card"
+      className="my-1.5 max-w-full animate-line-in overflow-x-auto rounded-lg border bg-sunken"
       // The table stays indented as far as the server indented its rows.
       style={{ ...style, marginLeft: `${first.indent}ch` }}
     >

@@ -1,4 +1,7 @@
-import type { RolloutState, StepState } from "@/lib/types.ts";
+import type { RolloMood, RolloutState, StepState } from "@/lib/types.ts";
+
+/** The robot that speaks for the assistant. The name is short for "rollout". */
+export const ASSISTANT_NAME = "Rollo";
 
 export const POD_COUNTS = /^(\d+)\/(\d+) /;
 
@@ -11,6 +14,14 @@ export const PODS_STEP_STATE: Record<RolloutState, StepState> = {
   succeeded: "done",
   failed: "failed",
   unknown: "pending",
+};
+
+/** How Rollo looks while it follows a change: busy until the end, then pleased or uneasy. */
+export const MOOD_OF_ROLLOUT: Record<RolloutState, RolloMood> = {
+  running: "working",
+  succeeded: "happy",
+  failed: "worried",
+  unknown: "idle",
 };
 
 /** How often the page asks for the progress of a running change. */

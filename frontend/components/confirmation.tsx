@@ -32,13 +32,13 @@ export function Confirmation({ action, note, onDecide }: ConfirmationProps) {
           onClick={() => onDecide("confirm")}
           // Red for a protected environment, so it cannot be clicked out of habit.
           className={cn(
-            "h-[34px] px-3.5",
+            "h-9 px-4",
             isProtected && "bg-down-solid text-on-down hover:bg-down-solid hover:brightness-90",
           )}
         >
           Confirm
         </Button>
-        <Button variant="outline" disabled={!isOpen} onClick={() => onDecide("cancel")} className="h-[34px] px-3.5">
+        <Button variant="outline" disabled={!isOpen} onClick={() => onDecide("cancel")} className="h-9 px-4">
           Cancel
         </Button>
         <span className="text-[12.5px] text-muted-foreground">{note}</span>

@@ -8,35 +8,34 @@
 /* Colours come first. :root holds the light values and .dark the dark ones.
    The first group uses the names shadcn/ui components expect. */
 :root {
-  --background: #f2f4f7;
-  --foreground: #17202c;
+  --background: #f1f3fb;
+  --foreground: #141833;
   --card: #ffffff;
-  --card-foreground: #17202c;
+  --card-foreground: #141833;
   --popover: #ffffff;
-  --popover-foreground: #17202c;
-  /* Accent: buttons, focus rings and the user's own messages. Never used for a status. */
-  --primary: #2f6be0;
-  --primary-strong: #2457c2;
+  --popover-foreground: #141833;
+  /* Accent: Rollo's own blue. Buttons, focus rings and the user's messages. Never used for a status. */
+  --primary: #3d5afe;
+  --primary-strong: #2a45dc;
   --primary-foreground: #ffffff;
-  --secondary: #f6f7f9;
-  --secondary-foreground: #17202c;
-  --muted: #e9edf2;
-  --muted-foreground: #5a6779;
-  --accent: #e8f0fe;
-  --accent-foreground: #17202c;
+  --secondary: #f5f6fd;
+  --secondary-foreground: #141833;
+  --muted: #e6e9f5;
+  --muted-foreground: #5a6185;
+  --accent: #e6eaff;
+  --accent-foreground: #141833;
   --destructive: #c8372d;
-  --border: #dde2ea;
-  --input: #c3cbd7;
-  --ring: #2f6be0;
-  --radius: 0.625rem;
+  --border: #dde1f0;
+  --input: #c3c9e2;
+  --ring: #3d5afe;
+  --radius: 0.75rem;
 
-  /* A slightly sunken surface: agent replies, the message box. */
-  --sunken: #f6f7f9;
+  /* A slightly sunken surface: a table or a button inside a reply. */
+  --sunken: #f4f5fc;
 
-  /* The top bar is dark in both themes, like a cloud console. */
-  --ink: #101826;
-  --on-ink: #eef2f8;
-  --on-ink-muted: #9aa8bc;
+  /* Rollo's dark face plate and the eyes on it. */
+  --ink: #121735;
+  --on-ink: #eef1ff;
 
   /* Status colours. Each has a text colour, a soft background and a solid fill. */
   --healthy: #14734a;
@@ -49,32 +48,32 @@
   --down-soft: #fce6e3;
   --down-solid: #c8372d;
   --on-down: #ffffff;
-  --neutral-solid: #8c98a8;
+  --neutral-solid: #8c95b3;
 }
 
 .dark {
-  --background: #0c1119;
-  --foreground: #e5eaf1;
-  --card: #131a24;
-  --card-foreground: #e5eaf1;
-  --popover: #131a24;
-  --popover-foreground: #e5eaf1;
-  --primary: #6ba2ff;
-  --primary-strong: #8ab5ff;
-  --primary-foreground: #0a1220;
-  --secondary: #0e141d;
-  --secondary-foreground: #e5eaf1;
-  --muted: #1f2936;
-  --muted-foreground: #94a2b6;
-  --accent: #17294a;
-  --accent-foreground: #e5eaf1;
+  --background: #090c1a;
+  --foreground: #e6e9f8;
+  --card: #11152b;
+  --card-foreground: #e6e9f8;
+  --popover: #11152b;
+  --popover-foreground: #e6e9f8;
+  --primary: #8496ff;
+  --primary-strong: #a3b1ff;
+  --primary-foreground: #0a0f2e;
+  --secondary: #0d1124;
+  --secondary-foreground: #e6e9f8;
+  --muted: #1b2040;
+  --muted-foreground: #98a1c8;
+  --accent: #1a2256;
+  --accent-foreground: #e6e9f8;
   --destructive: #ef5f54;
-  --border: #232d3b;
-  --input: #36445a;
-  --ring: #6ba2ff;
+  --border: #222849;
+  --input: #353d66;
+  --ring: #8496ff;
 
-  --sunken: #0e141d;
-  --ink: #080c12;
+  --sunken: #0c1023;
+  --ink: #070a18;
 
   --healthy: #6fd6a0;
   --healthy-soft: #12301f;
@@ -86,7 +85,7 @@
   --down-soft: #3d1a17;
   --down-solid: #ef5f54;
   --on-down: #1c0806;
-  --neutral-solid: #6c7a8d;
+  --neutral-solid: #6c7596;
 }
 
 /* A tone is one of the four status looks. It only sets three colours; the status
@@ -117,8 +116,9 @@
 
 /* This makes every colour above usable as a Tailwind class, for example bg-sunken. */
 @theme inline {
-  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
-  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  /* app/layout.tsx loads the two fonts and puts them in these two variables. */
+  --font-sans: var(--font-jakarta), system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --font-heading: var(--font-sans);
 
   --color-background: var(--background);
@@ -144,7 +144,6 @@
   --color-sunken: var(--sunken);
   --color-ink: var(--ink);
   --color-on-ink: var(--on-ink);
-  --color-on-ink-muted: var(--on-ink-muted);
   --color-healthy-solid: var(--healthy-solid);
   --color-down: var(--down);
   --color-down-soft: var(--down-soft);
@@ -162,15 +161,28 @@
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
 
+  /* The shadow under a message, a panel and the message box: a thin edge and a wide, faint glow. */
+  --shadow-soft: 0 1px 2px rgb(20 24 51 / 0.05), 0 10px 28px -14px rgb(20 24 51 / 0.18);
+
   /* Movement. Only opacity and position change, never a size, so the browser does not
      lay the page out again while something moves. That is what keeps it smooth.
-     The curve starts fast and settles gently, without a bounce. */
+     The curve starts fast and settles gently. */
   --animate-message-in: message-in 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
   --animate-line-in: line-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
   /* A tick or a ready pod that has just appeared. */
   --animate-pop: pop 0.36s cubic-bezier(0.22, 1, 0.36, 1);
   /* The pod that is starting right now. */
   --animate-pod-starting: pod-starting 1.2s ease-in-out infinite;
+  /* Rollo lands on the welcome screen. This curve goes a little too far and comes back: a small bounce. */
+  --animate-drop-in: drop-in 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  /* Rollo's shadow on the welcome screen. It takes as long as one float up and down. */
+  --animate-shadow: shadow 3.2s ease-in-out infinite;
+  /* One of the three dots after "On it". */
+  --animate-typing-dot: typing-dot 1.1s ease-in-out infinite;
+  /* One of the lines behind Rollo while it runs. */
+  --animate-speed-line: speed-line 0.55s linear infinite;
+  /* One piece of confetti. Where it lands is set on the piece itself, as --x and --y. */
+  --animate-confetti: confetti 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
 
   @keyframes message-in {
     from {
@@ -198,9 +210,61 @@
       opacity: 0.35;
     }
   }
+
+  @keyframes drop-in {
+    from {
+      opacity: 0;
+      transform: translateY(-28px) scale(0.9);
+    }
+  }
+
+  @keyframes shadow {
+    50% {
+      opacity: 0.55;
+      transform: scaleX(0.78);
+    }
+  }
+
+  @keyframes typing-dot {
+    0%,
+    60%,
+    100% {
+      opacity: 0.35;
+      transform: translateY(0);
+    }
+    30% {
+      opacity: 1;
+      transform: translateY(-3px);
+    }
+  }
+
+  @keyframes speed-line {
+    from {
+      opacity: 0;
+      transform: translateX(6px);
+    }
+    30% {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+      transform: translateX(-6px);
+    }
+  }
+
+  @keyframes confetti {
+    from {
+      opacity: 1;
+      transform: translate(0, 0) rotate(0deg);
+    }
+    to {
+      opacity: 0;
+      transform: translate(var(--x), var(--y)) rotate(200deg);
+    }
+  }
 }
 
-/* The words Buddy shows while it works: a band of light moves across them. */
+/* The words Rollo shows while it works: a band of light moves across them. */
 @utility text-shimmer {
   background-image: linear-gradient(
     90deg,
@@ -223,56 +287,149 @@
   }
 }
 
-/* ---- Buddy ----
-   The drawing is in components/buddy.tsx. data-mood on it picks the colour of the
-   antenna light and how Buddy moves. */
-.buddy {
-  --buddy-light: var(--neutral-solid);
+/* The conversation fades out at its top and bottom edge instead of being cut off there. */
+@utility edge-fade {
+  mask-image: linear-gradient(to bottom, transparent, black 18px, black calc(100% - 12px), transparent);
 }
 
-.buddy-light {
-  fill: var(--buddy-light);
+/* ---- Rollo ----
+   The drawing is in components/rollo.tsx. Three attributes on it choose how it moves:
+   data-mood is what Rollo feels, data-body means the whole robot is drawn and not only
+   the head, and data-live marks the Rollo that blinks, floats and waves. */
+.rollo {
+  --rollo-light: var(--neutral-solid);
+}
+
+.rollo-light {
+  fill: var(--rollo-light);
   transition: fill 0.3s ease;
 }
 
 /* A part of an SVG turns and scales around its own middle only when told to. */
-.buddy-light,
-.buddy-eyes {
+.rollo-light,
+.rollo-eyes,
+.rollo-thought {
   transform-box: fill-box;
   transform-origin: center;
 }
 
-.buddy[data-live] .buddy-eyes {
-  animation: buddy-blink 4.2s ease-in-out infinite;
+/* An arm turns around the shoulder and a leg around the hip: the top of each. */
+.rollo-arm,
+.rollo-leg {
+  transform-box: fill-box;
+  transform-origin: 50% 12%;
+  transition: transform 0.3s ease;
 }
 
-/* Working: the eyes look left and right, the light pulses and the head bobs. */
-.buddy[data-mood="working"] {
-  --buddy-light: var(--primary);
-  animation: buddy-bob 1.4s ease-in-out infinite;
+.rollo[data-live] .rollo-eyes {
+  animation: rollo-blink 4.2s ease-in-out infinite;
 }
 
-.buddy[data-mood="working"] .buddy-eyes {
-  animation: buddy-look 1.4s ease-in-out infinite;
+/* The big Rollo on the welcome screen floats, and waves now and then. */
+.rollo[data-live][data-body] {
+  animation: rollo-float 3.2s ease-in-out infinite;
 }
 
-.buddy[data-mood="working"] .buddy-light {
-  animation: buddy-pulse 0.7s ease-in-out infinite alternate;
+.rollo[data-live][data-body] .rollo-arm-b {
+  animation: rollo-wave 5s ease-in-out 0.7s infinite;
+}
+
+/* Working: the antenna light turns blue and pulses. What else moves depends on the drawing. */
+.rollo[data-mood="working"] {
+  --rollo-light: var(--primary);
+}
+
+.rollo[data-mood="working"] .rollo-light {
+  animation: rollo-pulse 0.7s ease-in-out infinite alternate;
+}
+
+/* Only the head, next to a message: Rollo thinks. The head tilts from side to side,
+   the eyes look up and around, and three dots rise beside the antenna. */
+.rollo[data-mood="working"]:not([data-body]) {
+  animation: rollo-ponder 2.2s ease-in-out infinite;
+}
+
+.rollo[data-mood="working"]:not([data-body]) .rollo-eyes {
+  animation: rollo-look 2.2s ease-in-out infinite;
+}
+
+.rollo-thought {
+  animation: rollo-thought 1.4s ease-in-out infinite;
+}
+
+.rollo-thought:nth-of-type(2) {
+  animation-delay: 0.2s;
+}
+
+.rollo-thought:nth-of-type(3) {
+  animation-delay: 0.4s;
+}
+
+/* The whole robot, on the rollout track: Rollo runs. It leans forward, bobs up at
+   every step, looks ahead and swings its arms and legs. */
+.rollo[data-mood="working"][data-body] {
+  animation: rollo-run 0.26s ease-in-out infinite;
+}
+
+.rollo[data-mood="working"][data-body] .rollo-eyes {
+  transform: translateX(2px);
+}
+
+.rollo[data-mood="working"] .rollo-arm,
+.rollo[data-mood="working"] .rollo-leg {
+  animation: rollo-stride 0.52s ease-in-out infinite;
+}
+
+/* A runner is drawn from the side: both legs start under the middle of the body and
+   both arms at the same shoulder. This is how far each one moves sideways to get there. */
+.rollo-leg-a {
+  --to-middle: 4px;
+}
+
+.rollo-leg-b {
+  --to-middle: -4px;
+}
+
+.rollo-arm-a {
+  --to-middle: 11.3px;
+}
+
+.rollo-arm-b {
+  --to-middle: -11.3px;
+}
+
+/* An arm and the leg on the other side swing together, half a step after the other pair. */
+.rollo[data-mood="working"] .rollo-arm-a,
+.rollo[data-mood="working"] .rollo-leg-b {
+  animation-delay: -0.26s;
 }
 
 /* Good news: a green light and one small hop. */
-.buddy[data-mood="happy"] {
-  --buddy-light: var(--healthy-solid);
-  animation: buddy-hop 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+.rollo[data-mood="happy"] {
+  --rollo-light: var(--healthy-solid);
+  animation: rollo-hop 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* The whole robot hops twice and throws its arms up. */
+.rollo[data-mood="happy"][data-body] {
+  animation-iteration-count: 2;
+}
+
+.rollo[data-mood="happy"] .rollo-arm-a {
+  transform: rotate(128deg);
+}
+
+.rollo[data-mood="happy"] .rollo-arm-b {
+  transform: rotate(-128deg);
 }
 
 /* A problem: a red light and one short shake. */
-.buddy[data-mood="worried"] {
-  --buddy-light: var(--down-solid);
-  animation: buddy-shake 0.4s ease-in-out;
+.rollo[data-mood="worried"] {
+  --rollo-light: var(--down-solid);
+  animation: rollo-shake 0.4s ease-in-out;
 }
 
-@keyframes buddy-blink {
+@keyframes rollo-blink {
   0%,
   92%,
   100% {
@@ -283,23 +440,31 @@
   }
 }
 
-@keyframes buddy-look {
+@keyframes rollo-float {
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+/* The arm goes up, moves to and fro three times, and comes down again. */
+@keyframes rollo-wave {
   0%,
+  46%,
   100% {
-    transform: translateX(-2px);
+    transform: rotate(0deg);
   }
-  50% {
-    transform: translateX(2px);
+  8%,
+  22%,
+  36% {
+    transform: rotate(-135deg);
+  }
+  15%,
+  29% {
+    transform: rotate(-105deg);
   }
 }
 
-@keyframes buddy-bob {
-  50% {
-    transform: translateY(-2px);
-  }
-}
-
-@keyframes buddy-pulse {
+@keyframes rollo-pulse {
   from {
     opacity: 0.45;
     transform: scale(0.8);
@@ -310,13 +475,67 @@
   }
 }
 
-@keyframes buddy-hop {
+@keyframes rollo-ponder {
+  0%,
+  100% {
+    transform: rotate(-5deg);
+  }
+  50% {
+    transform: rotate(5deg);
+  }
+}
+
+@keyframes rollo-look {
+  0%,
+  100% {
+    transform: translate(-2px, -1.5px);
+  }
+  50% {
+    transform: translate(2px, -1.5px);
+  }
+}
+
+@keyframes rollo-thought {
+  0%,
+  100% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  40%,
+  70% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes rollo-run {
+  0%,
+  100% {
+    transform: rotate(7deg) translateY(0);
+  }
+  50% {
+    transform: rotate(7deg) translateY(-2px);
+  }
+}
+
+/* One step: the arm or leg swings forward and back again. */
+@keyframes rollo-stride {
+  0%,
+  100% {
+    transform: translateX(var(--to-middle)) rotate(-34deg);
+  }
+  50% {
+    transform: translateX(var(--to-middle)) rotate(34deg);
+  }
+}
+
+@keyframes rollo-hop {
   40% {
     transform: translateY(-5px);
   }
 }
 
-@keyframes buddy-shake {
+@keyframes rollo-shake {
   25% {
     transform: translateX(-2px);
   }
@@ -334,6 +553,11 @@
   }
   body {
     @apply bg-background text-foreground;
+    /* A soft glow of the accent colour behind the top of the page. */
+    background-image:
+      radial-gradient(60rem 28rem at 10% -10%, color-mix(in oklab, var(--primary) 14%, transparent), transparent 70%),
+      radial-gradient(44rem 24rem at 100% 0%, color-mix(in oklab, var(--primary) 8%, transparent), transparent 70%);
+    background-repeat: no-repeat;
   }
 }
 
@@ -343,5 +567,10 @@
   * {
     animation: none !important;
     scroll-behavior: auto !important;
+  }
+
+  /* Confetti that cannot fly away would stay on Rollo, so it is left out. */
+  .confetti {
+    display: none;
   }
 }

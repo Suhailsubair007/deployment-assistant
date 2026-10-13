@@ -9,9 +9,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { EnvironmentStatusState } from "@/hooks/use-environment-status";
 import type { EnvironmentSummary } from "@/lib/types";
 
-const CARD = "relative overflow-hidden rounded-[10px] border py-3 pr-3 pl-4";
+const CARD = "relative overflow-hidden rounded-xl border bg-card py-3 pr-3 pl-4";
 
-function EnvironmentCard({ summary }: { summary: EnvironmentSummary }) {
+interface EnvironmentCardProps {
+  summary: EnvironmentSummary;
+  /** How long after the page opens the card appears, so the cards come in one after the other. */
+  delayMs: number;
+}
+
+function EnvironmentCard({ summary, delayMs }: EnvironmentCardProps) {
   const lastUpdate =
     summary.lastUpdate !== null
       ? new Date(summary.lastUpdate).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })
@@ -21,7 +27,11 @@ function EnvironmentCard({ summary }: { summary: EnvironmentSummary }) {
     // A strip in the status colour down the left edge, readable from across the room.
     <div
       data-tone={toneOf(summary.status)}
-      className={cn(CARD, "before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-tone-solid")}
+      style={{ animationDelay: `${delayMs}ms` }}
+      className={cn(
+        CARD,
+        "animate-message-in before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-tone-solid before:transition-colors before:duration-500",
+      )}
     >
       <div className="flex items-center justify-between gap-2">
         <div>
@@ -73,10 +83,10 @@ export function StatusPanel({ status }: { status: EnvironmentStatusState }) {
     <Card
       role="complementary"
       aria-label="Environment status"
-      className="order-first max-h-full min-h-0 gap-0 py-0 min-[861px]:order-none min-[861px]:self-start"
+      className="order-first max-h-full min-h-0 gap-0 rounded-2xl py-0 shadow-soft min-[861px]:order-none min-[861px]:self-start"
     >
       <div className="flex items-center justify-between border-b py-2.5 pr-3 pl-4">
-        <h2 className="text-sm font-semibold">Environments</h2>
+        <h2 className="text-sm font-bold tracking-[-0.01em]">Environments</h2>
         {/* The button is switched off only while a check is running. */}
         <Button variant="outline" disabled={isRefreshing} onClick={refresh} className="h-[30px] px-2.5 text-[12.5px]">
           <RefreshCw className={cn("size-3.5", isRefreshing && "animate-spin")} />
@@ -105,14 +115,17 @@ export function StatusPanel({ status }: { status: EnvironmentStatusState }) {
               <PlaceholderCard />
             </>
           ) : (
-            environments.map((summary) => (
-              <EnvironmentCard key={`${summary.environment}/${summary.app}`} summary={summary} />
+            environments.map((summary, index) => (
+              <EnvironmentCard key={`${summary.environment}/${summary.app}`} summary={summary} delayMs={index * 70} />
             ))
           )}
         </div>
       )}
 
-      <p className="border-t px-4 py-[9px] text-xs text-muted-foreground">{checkedText}</p>
+      <p className="border-t px-4 py-[9px] text-xs text-muted-foreground">
+        {/* Until the first answer arrives, a band of light moves across the words. */}
+        <span className={cn(environments === null && "text-shimmer")}>{checkedText}</span>
+      </p>
     </Card>
   );
 }

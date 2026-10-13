@@ -1,6 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="7" fill="#101826" />
-  <rect x="5" y="12" width="6" height="8" rx="2" fill="#fff" />
-  <rect x="13" y="12" width="6" height="8" rx="2" fill="#fff" />
-  <rect x="21.75" y="12.75" width="4.5" height="6.5" rx="1.5" fill="none" stroke="#9aa8bc" stroke-width="1.5" />
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <!-- Rollo's head, the same drawing as in components/rollo.tsx, a little smaller on a light tile. -->
+  <rect width="48" height="48" rx="11" fill="#e6eaff" />
+  <g transform="translate(4.8 5.4) scale(0.8)">
+    <path d="M24 6v5" stroke="#2a45dc" stroke-width="2.4" stroke-linecap="round" />
+    <circle cx="24" cy="4.6" r="3.1" fill="#1f9d62" />
+    <rect x="2.5" y="21" width="5" height="11" rx="2.5" fill="#2a45dc" />
+    <rect x="40.5" y="21" width="5" height="11" rx="2.5" fill="#2a45dc" />
+    <rect x="6" y="10" width="36" height="33" rx="11" fill="#3d5afe" />
+    <rect x="11.5" y="17.5" width="25" height="17" rx="8.5" fill="#121735" />
+    <rect x="17.3" y="22.5" width="4.2" height="7" rx="2.1" fill="#eef1ff" />
+    <rect x="26.5" y="22.5" width="4.2" height="7" rx="2.1" fill="#eef1ff" />
+  </g>
 </svg>
