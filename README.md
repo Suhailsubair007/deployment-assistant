@@ -98,6 +98,8 @@ The progress line then shows the image being built, handed to the cluster, and t
 - `deploy greeter-app to staging` builds the folder again as the next version (`v2`, `v3`, ...).
 - `deploy greeter-app version v1 to staging`, `scale greeter-app in staging to 3` and `roll back greeter-app in staging` work as they do for `sample-app`.
 
+A third small app, [counter-app/](counter-app/), is there to try the health path question. It listens on port 4000 and its health check is on `/healthz`, so answer that question with `/healthz` instead of `default`. With `default` the pods never become ready, and the assistant reports that the rollout did not finish.
+
 To see the greeting the service answers with:
 
 ```bash
@@ -246,6 +248,7 @@ config/          thresholds, timeouts, environments
 k8s/             manifest templates and local cluster files
 sample-app/      the small app that gets deployed
 greeter-app/     a second small app, for trying "create a service" (port 3000, reads a variable)
+counter-app/     a third small app (port 4000, health check on /healthz)
 terraform/       the EKS cluster, and terraform/service: one image repository per service
 tests/           unit tests
 ```
