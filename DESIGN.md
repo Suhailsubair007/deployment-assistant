@@ -86,7 +86,7 @@ A rollout can take minutes, so the Confirm request does not wait for it.
 
 1. `execute()` takes the lock, applies the manifests and returns an operation ID. This takes well under a second.
 2. A loop keeps running in the background of the same Node.js process. Every 2 seconds it reads the Deployment and its pods and records progress such as `2/3 pods ready`.
-3. The browser asks `GET /api/operations/:id` once a second and redraws three steps: change sent, pods starting (with one square per pod), rollout finished.
+3. The browser asks `GET /api/operations/:id` once a second and redraws the progress: the step the change is at (for example "Starting the pods, 2 of 3 ready") and a track with one square per pod, from "sent" to "finished".
 
 Node.js stays responsive because every Kubernetes call is asynchronous: while one rollout waits, the process serves other requests.
 
@@ -285,7 +285,7 @@ The IAM role carries no Kubernetes power by itself. An access entry maps it to a
 # Known limits
 
 - **One backend instance.** Sessions and progress are in memory, and the lock is a local SQLite file.
-- **No login.** The requester's name is whatever was typed.
+- **No login.** The requester's name is whatever was typed, so it is stored as plain text on each deployment. The next step is a login together with a `users` table: name, email, kind (a person, a service such as a CI job, or the system itself), role (viewer, deployer, admin: who may deploy to prod), and when they were first and last seen. `requested_by` then becomes a reference to a user. I left the table out until there is a login, because without one it would only hold unchecked names in a second place.
 - **Without an OpenAI key**, parsing is rule-based and understands the phrasings I wrote rules for.
 - **With a key**, every typed message is sent to OpenAI. The automated tests use pretend model answers; with a real key I checked it by hand on a dozen messages.
 - **Roll back** restores the image that ran before the last change, so rolling back twice returns to where you started, like `kubectl rollout undo`.
