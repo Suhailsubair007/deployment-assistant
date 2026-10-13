@@ -251,13 +251,10 @@ export class KubeGateway implements ClusterGateway {
         const cause = status === 403 ? error : new TypeError("fetch failed");
         throw toAppError(cause, { action: "read CPU and memory usage", context: this.context });
       }
-      if (status === 404) {
-        throw new MetricsUnavailableError(
-          "metrics-server is not installed in this cluster, so CPU and memory usage is not available.",
-        );
-      }
+      // The library reports a missing metrics API and one that is still starting in the
+      // same way, so the message covers both.
       throw new MetricsUnavailableError(
-        "metrics-server is not ready, so CPU and memory usage is not available right now.",
+        "metrics-server is not installed or not ready in this cluster, so CPU and memory usage is not available.",
       );
     }
   }
