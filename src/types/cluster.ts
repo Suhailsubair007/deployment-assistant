@@ -92,6 +92,8 @@ export interface Manifest {
 export interface ClusterGateway {
   /** Name of the kubeconfig context in use, for messages. */
   contextName(): string;
+  /** Name of the cluster that context points to. Two contexts (two logins) can share one cluster. */
+  clusterName(): string;
   namespaceExists(namespace: string): Promise<boolean>;
 
   /** Returns null when the deployment does not exist. */

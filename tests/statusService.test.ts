@@ -21,7 +21,7 @@ async function setup() {
     gateway.podUsage.set(name, { cpu: "70m", memory: "127Mi" });
   }
   const config = loadConfig("config/app.config.yaml");
-  const history = new HistoryStore(":memory:");
+  const history = new HistoryStore(":memory:", "fake-cluster");
   const service = new StatusService({
     gateway,
     history,

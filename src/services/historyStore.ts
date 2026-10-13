@@ -2,7 +2,7 @@ import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
-import { HISTORY_SCHEMA } from "@/constants/deployment.ts";
+import { ADD_CLUSTER_COLUMN, HISTORY_SCHEMA } from "@/constants/deployment.ts";
 import { DeployInProgressError } from "@/errors.ts";
 import type {
   DeploymentAction,
@@ -21,6 +21,7 @@ export function formatDeploymentId(id: number): string {
 function toRecord(row: Row): DeploymentRecord {
   return {
     id: Number(row.id),
+    cluster: String(row.cluster),
     environment: String(row.environment),
     app: String(row.app),
     action: row.action as DeploymentAction,
@@ -35,16 +36,34 @@ function toRecord(row: Row): DeploymentRecord {
   };
 }
 
+/** The history of one cluster. Every change it stores, and everything it reads, belongs to that cluster. */
 export class HistoryStore {
   private readonly db: DatabaseSync;
+  private readonly cluster: string;
 
-  /** @param path file to store the history in, or ":memory:" for a store that is not saved. */
-  constructor(path: string) {
+  /**
+   * @param path file to store the history in, or ":memory:" for a store that is not saved.
+   * @param cluster name of the cluster the app is connected to. The file may hold other clusters' rows too.
+   */
+  constructor(path: string, cluster: string) {
     if (path !== ":memory:") {
       mkdirSync(dirname(path), { recursive: true });
     }
     this.db = new DatabaseSync(path);
+    this.cluster = cluster;
+    this.upgradeOlderFile();
     this.db.exec(HISTORY_SCHEMA);
+  }
+
+  /** A file written before the cluster was recorded: its rows are given to the cluster in use now. */
+  private upgradeOlderFile(): void {
+    const columns = this.db.prepare("PRAGMA table_info(deployments)").all();
+    const isNewFile = columns.length === 0;
+    if (isNewFile || columns.some((column) => column.name === "cluster")) {
+      return;
+    }
+    this.db.exec(ADD_CLUSTER_COLUMN);
+    this.db.prepare("UPDATE deployments SET cluster = ?").run(this.cluster);
   }
 
   /** Records the start of a change and takes the environment's lock. */
@@ -53,10 +72,11 @@ export class HistoryStore {
       const result = this.db
         .prepare(
           `INSERT INTO deployments
-             (environment, app, action, image, previous_image, replicas, status, requested_by, started_at)
-           VALUES (?, ?, ?, ?, ?, ?, 'in_progress', ?, ?)`,
+             (cluster, environment, app, action, image, previous_image, replicas, status, requested_by, started_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 'in_progress', ?, ?)`,
         )
         .run(
+          this.cluster,
           deployment.environment,
           deployment.app,
           deployment.action,
@@ -95,8 +115,8 @@ export class HistoryStore {
   /** The most recent change of any kind to this app in this environment, or null. */
   latest(environment: string, app: string): DeploymentRecord | null {
     const row = this.db
-      .prepare("SELECT * FROM deployments WHERE environment = ? AND app = ? ORDER BY id DESC LIMIT 1")
-      .get(environment, app);
+      .prepare("SELECT * FROM deployments WHERE cluster = ? AND environment = ? AND app = ? ORDER BY id DESC LIMIT 1")
+      .get(this.cluster, environment, app);
     return row === undefined ? null : toRecord(row);
   }
 
@@ -105,17 +125,17 @@ export class HistoryStore {
     const row = this.db
       .prepare(
         `SELECT * FROM deployments
-          WHERE environment = ? AND app = ? AND action != 'scale'
+          WHERE cluster = ? AND environment = ? AND app = ? AND action != 'scale'
           ORDER BY id DESC LIMIT 1`,
       )
-      .get(environment, app);
+      .get(this.cluster, environment, app);
     return row === undefined ? null : toRecord(row);
   }
 
   /** Newest first. */
   list(filter: HistoryFilter): DeploymentRecord[] {
-    const conditions: string[] = [];
-    const values: (string | number)[] = [];
+    const conditions = ["cluster = ?"];
+    const values: (string | number)[] = [this.cluster];
     if (filter.requestedBy !== undefined) {
       conditions.push("requested_by = ?");
       values.push(filter.requestedBy);
@@ -124,14 +144,16 @@ export class HistoryStore {
       conditions.push("environment = ?");
       values.push(filter.environment);
     }
-    const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
     return this.db
-      .prepare(`SELECT * FROM deployments ${where} ORDER BY id DESC LIMIT ?`)
+      .prepare(`SELECT * FROM deployments WHERE ${conditions.join(" AND ")} ORDER BY id DESC LIMIT ?`)
       .all(...values, filter.limit)
       .map(toRecord);
   }
 
-  /** Called once at startup. */
+  /**
+   * Called once at startup. It covers every cluster in the file: the process that was
+   * following those changes is gone, whichever cluster they were on.
+   */
   recoverInterrupted(): number {
     const result = this.db
       .prepare(
@@ -155,8 +177,8 @@ export class HistoryStore {
 
   private activeIn(environment: string): DeploymentRecord | null {
     const row = this.db
-      .prepare("SELECT * FROM deployments WHERE environment = ? AND status = 'in_progress'")
-      .get(environment);
+      .prepare("SELECT * FROM deployments WHERE cluster = ? AND environment = ? AND status = 'in_progress'")
+      .get(this.cluster, environment);
     return row === undefined ? null : toRecord(row);
   }
 }

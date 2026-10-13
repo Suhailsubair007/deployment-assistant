@@ -31,7 +31,7 @@ async function setup(reader?: MessageReader) {
     gateway.podUsage.set(pod.name, { cpu: "70m", memory: "127Mi" });
   }
   const config = loadConfig("config/app.config.yaml");
-  const history = new HistoryStore(":memory:");
+  const history = new HistoryStore(":memory:", "fake-cluster");
   const operations = new OperationStore();
   const explainer = new FailureExplainer(gateway);
   const sessions = new SessionStore();

@@ -23,7 +23,8 @@ function start(): void {
 
   const gateway = new KubeGateway(process.env.KUBE_CONTEXT || undefined);
 
-  const history = new HistoryStore(process.env.DB_PATH || DEFAULT_DB_PATH);
+  // The history is kept per cluster, so pointing the app at another cluster does not mix them up.
+  const history = new HistoryStore(process.env.DB_PATH || DEFAULT_DB_PATH, gateway.clusterName());
   const interrupted = history.recoverInterrupted();
 
   const operations = new OperationStore();

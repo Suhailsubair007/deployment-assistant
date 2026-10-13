@@ -238,6 +238,7 @@ test("nodes without metrics show Ready status and say why usage is unknown", () 
 function record(overrides: Partial<DeploymentRecord>): DeploymentRecord {
   return {
     id: 7,
+    cluster: "kind-test",
     environment: "staging",
     app: "sample-app",
     action: "deploy",

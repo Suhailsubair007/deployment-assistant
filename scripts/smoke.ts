@@ -24,7 +24,7 @@ const APP = "sample-app";
 
 const gateway = new KubeGateway(process.env.KUBE_CONTEXT);
 const config = loadConfig(process.env.CONFIG_PATH ?? "config/app.config.yaml");
-const history = new HistoryStore(process.env.DB_PATH ?? "data/assistant.db");
+const history = new HistoryStore(process.env.DB_PATH ?? "data/assistant.db", gateway.clusterName());
 const explainer = new FailureExplainer(gateway);
 const deployments = new DeploymentService({
   gateway,

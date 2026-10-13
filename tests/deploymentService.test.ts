@@ -23,7 +23,7 @@ const STAGING = { environment: "staging", app: "sample-app" };
  */
 function setup(options: { imageRegistry?: string; sleep?: (ms: number) => Promise<void> } = {}) {
   const gateway = new FakeGateway();
-  const history = new HistoryStore(":memory:");
+  const history = new HistoryStore(":memory:", "fake-cluster");
   const operations = new OperationStore();
   let clockMs = 0;
   const service = new DeploymentService({

@@ -38,6 +38,7 @@ interface KubeClients {
 
 export class KubeGateway implements ClusterGateway {
   private readonly context: string;
+  private readonly cluster: string;
   private readonly clients: KubeClients | null;
   /** Why the kubeconfig could not be used. Empty when everything is fine. */
   private readonly setupProblem: string;
@@ -49,6 +50,7 @@ export class KubeGateway implements ClusterGateway {
     const available = kubeConfig.getContexts().map((context) => context.name);
     if (requestedContext && !available.includes(requestedContext)) {
       this.context = requestedContext;
+      this.cluster = requestedContext;
       this.clients = null;
       this.setupProblem =
         `Your kubeconfig has no context named "${requestedContext}". ` +
@@ -59,6 +61,8 @@ export class KubeGateway implements ClusterGateway {
       kubeConfig.setCurrentContext(requestedContext);
     }
     this.context = kubeConfig.getCurrentContext();
+    // Without a cluster in the kubeconfig nothing can be reached anyway; the context name stands in.
+    this.cluster = kubeConfig.getCurrentCluster()?.name ?? this.context;
 
     try {
       this.clients = {
@@ -91,6 +95,10 @@ export class KubeGateway implements ClusterGateway {
 
   contextName(): string {
     return this.context;
+  }
+
+  clusterName(): string {
+    return this.cluster;
   }
 
   namespaceExists(namespace: string): Promise<boolean> {

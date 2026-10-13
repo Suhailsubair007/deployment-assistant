@@ -47,6 +47,8 @@ export type DeploymentStatus = "in_progress" | "succeeded" | "failed" | "timed_o
 
 export interface DeploymentRecord {
   id: number;
+  /** The cluster the change was made on, by its name in the kubeconfig. */
+  cluster: string;
   environment: string;
   app: string;
   action: DeploymentAction;

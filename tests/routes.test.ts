@@ -32,7 +32,7 @@ async function setup() {
   const gateway = new FakeGateway();
   gateway.seed("staging", "sample-app", "sample-app:v1", 3);
   const config = loadConfig("config/app.config.yaml");
-  const history = new HistoryStore(":memory:");
+  const history = new HistoryStore(":memory:", "fake-cluster");
   const operations = new OperationStore();
   const explainer = new FailureExplainer(gateway);
   const sessions = new SessionStore();

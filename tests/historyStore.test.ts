@@ -1,4 +1,8 @@
 import assert from "node:assert/strict";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { test } from "node:test";
 
 import { DeployInProgressError } from "@/errors.ts";
@@ -20,7 +24,18 @@ function deployTo(environment: string, overrides: Partial<NewDeployment> = {}): 
 
 /** A store that lives in memory, so tests leave no file behind. */
 function newStore(): HistoryStore {
-  return new HistoryStore(":memory:");
+  return new HistoryStore(":memory:", "kind-test");
+}
+
+/** A history file in a new temporary folder. A file, because two stores have to share it. */
+function newFile(): string {
+  return join(mkdtempSync(join(tmpdir(), "history-")), "history.db");
+}
+
+/** Two stores on one file, each for another cluster: what happens when the app is pointed at a second cluster. */
+function twoClusters(): { kind: HistoryStore; eks: HistoryStore } {
+  const file = newFile();
+  return { kind: new HistoryStore(file, "kind-local"), eks: new HistoryStore(file, "eks-staging") };
 }
 
 test("deployment IDs are shown as dep- followed by three digits", () => {
@@ -137,4 +152,74 @@ test("deployments left in progress by a crash are marked interrupted, which free
 
   assert.equal(store.latestImageChange("staging", "sample-app")?.status, "interrupted");
   assert.equal(store.start(deployTo("staging")).status, "in_progress");
+});
+
+// ---- One history file, more than one cluster ----
+
+test("a deployment is stored with the cluster it was made on", () => {
+  assert.equal(newStore().start(deployTo("staging")).cluster, "kind-test");
+});
+
+test("the list shows only the deployments of the cluster in use", () => {
+  const { kind, eks } = twoClusters();
+  kind.start(deployTo("staging"));
+
+  assert.equal(kind.list({ limit: 10 }).length, 1);
+  assert.deepEqual(eks.list({ limit: 10 }), []);
+});
+
+test("the image to roll back to is never taken from another cluster", () => {
+  const { kind, eks } = twoClusters();
+  const { id } = kind.start(deployTo("staging"));
+  kind.finish(id, "succeeded");
+
+  assert.equal(eks.latestImageChange("staging", "sample-app"), null);
+  assert.equal(eks.latest("staging", "sample-app"), null);
+  assert.equal(kind.latestImageChange("staging", "sample-app")?.previousImage, "sample-app:v1");
+});
+
+test("a change that runs on one cluster does not lock the same environment on another", () => {
+  const { kind, eks } = twoClusters();
+  kind.start(deployTo("staging"));
+
+  eks.assertFree("staging");
+  eks.start(deployTo("staging"));
+
+  // On its own cluster the environment is still taken.
+  assert.throws(() => kind.start(deployTo("staging")), DeployInProgressError);
+});
+
+test("a restart marks the unfinished deployments of every cluster as interrupted", () => {
+  // The process that was following them is gone, whichever cluster they were on.
+  const { kind, eks } = twoClusters();
+  kind.start(deployTo("staging"));
+
+  assert.equal(eks.recoverInterrupted(), 1);
+  kind.assertFree("staging");
+});
+
+test("a history file from before the cluster was recorded keeps its deployments, under the cluster in use", () => {
+  const file = newFile();
+  const old = new DatabaseSync(file);
+  // The table and the lock as they were before the "cluster" column.
+  old.exec(`
+    CREATE TABLE deployments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, environment TEXT NOT NULL, app TEXT NOT NULL, action TEXT NOT NULL,
+      image TEXT NOT NULL, previous_image TEXT, replicas INTEGER NOT NULL, status TEXT NOT NULL,
+      requested_by TEXT NOT NULL, message TEXT, started_at TEXT NOT NULL, finished_at TEXT
+    );
+    CREATE UNIQUE INDEX one_active_deployment_per_environment ON deployments (environment) WHERE status = 'in_progress';
+    INSERT INTO deployments (environment, app, action, image, replicas, status, requested_by, started_at)
+      VALUES ('staging', 'sample-app', 'deploy', 'sample-app:v1', 3, 'succeeded', 'asha', '2026-10-12T10:00:00.000Z');
+  `);
+  old.close();
+
+  const store = new HistoryStore(file, "kind-local");
+
+  const [record] = store.list({ limit: 10 });
+  assert.equal(record?.image, "sample-app:v1");
+  assert.equal(record?.cluster, "kind-local");
+  // Opening the file for another cluster later does not move them again.
+  assert.deepEqual(new HistoryStore(file, "eks-staging").list({ limit: 10 }), []);
+  assert.equal(store.list({ limit: 10 }).length, 1);
 });

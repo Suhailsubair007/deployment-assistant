@@ -136,6 +136,8 @@ npm start
 
 No code changes. `KUBE_CONTEXT` picks the cluster, and `IMAGE_REGISTRY` is put in front of image names, because EKS cannot see images that exist only on your laptop.
 
+The deployment history is kept per cluster in the same file. On EKS it starts empty, and what you did on kind is still there when you switch back.
+
 ## Check the assistant's permissions locally
 
 On EKS the assistant works with a small set of permissions in the `staging` and `prod` namespaces. The same rules can be tried on kind:

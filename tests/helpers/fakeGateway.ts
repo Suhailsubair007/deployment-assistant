@@ -86,6 +86,10 @@ export class FakeGateway implements ClusterGateway {
     return "fake-cluster";
   }
 
+  clusterName(): string {
+    return "fake-cluster";
+  }
+
   async namespaceExists(namespace: string): Promise<boolean> {
     this.throwIfTold("namespaceExists");
     return this.namespaces.has(namespace);

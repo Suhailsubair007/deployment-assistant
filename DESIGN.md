@@ -100,7 +100,7 @@ Node.js stays responsive because every Kubernetes call is asynchronous: while on
 
 **What the app does.** Three layers, strongest first:
 
-1. **A lock in the database.** Starting a change inserts a row with status `in_progress`. A unique index allows one such row per environment, so when two requests arrive together the database accepts exactly one. The other user reads: `staging already has a deployment in progress (dep-006, started by asha). Try again when it finishes.`
+1. **A lock in the database.** Starting a change inserts a row with status `in_progress`. A unique index allows one such row per environment of a cluster, so when two requests arrive together the database accepts exactly one. The other user reads: `staging already has a deployment in progress (dep-006, started by asha). Try again when it finishes.`
 2. **A stale-summary check.** Before applying, the app compares the cluster with what the user saw in the confirmation. If someone else changed the environment in between, it refuses and asks them to ask again.
 3. **The resource version.** A replace carries the version that was read. If the Deployment changed in between, Kubernetes answers 409 Conflict instead of overwriting.
 
@@ -191,6 +191,7 @@ The agent and services depend on the `ClusterGateway` interface, not on a cluste
 
 - **GKE** speaks the same Kubernetes API. It is one more kubeconfig context, with Google's login plugin in place of `aws eks get-token`. No code changes.
 - **Several clusters at once** needs one change: an environment would map to a context as well as a namespace in the config file, and the app would keep one gateway per context.
+- **The history is already kept per cluster.** Every row stores the cluster's name from the kubeconfig. The list, the lock and roll back look only at the cluster the app is connected to, so pointing the app from kind to EKS cannot roll EKS back to an image that only ever ran on kind. It is the cluster's name and not the context's, because two contexts can be two logins for one cluster (the admin one and the assistant's limited one), and they must share one history.
 
 What differs between clouds stays in settings: the image registry is already one. Terraform is separate for each cloud by nature; the app does not care which one built the cluster.
 
