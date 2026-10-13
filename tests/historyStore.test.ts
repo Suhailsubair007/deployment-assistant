@@ -223,3 +223,16 @@ test("a history file from before the cluster was recorded keeps its deployments,
   assert.deepEqual(new HistoryStore(file, "eks-staging").list({ limit: 10 }), []);
   assert.equal(store.list({ limit: 10 }).length, 1);
 });
+
+test("a settings change is not what roll back returns from: the last image change stays the deploy", () => {
+  const store = newStore();
+  const deploy = store.start(deployTo("staging"));
+  store.finish(deploy.id, "succeeded");
+  const edit = store.start(
+    deployTo("staging", { action: "configure", image: "sample-app:v2", previousImage: "sample-app:v2" }),
+  );
+  store.finish(edit.id, "succeeded");
+
+  assert.equal(store.latestImageChange("staging", "sample-app")?.id, deploy.id);
+  assert.equal(store.latest("staging", "sample-app")?.id, edit.id);
+});

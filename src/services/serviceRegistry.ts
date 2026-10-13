@@ -91,6 +91,18 @@ export class ServiceRegistry {
       .run(this.cluster, spec.environment, spec.name, JSON.stringify(spec), new Date().toISOString());
   }
 
+  /**
+   * The number for the next image built for this service. Every environment of a cluster
+   * uses the same image repository, so the highest number in any of them counts.
+   */
+  nextVersion(name: string): number {
+    const builds = this.db
+      .prepare("SELECT spec FROM services WHERE cluster = ? AND name = ?")
+      .all(this.cluster, name)
+      .map((row) => (JSON.parse(String(row.spec)) as ServiceSpec).lastVersion);
+    return Math.max(0, ...builds) + 1;
+  }
+
   private fromConfig(environment: string, name: string): ServiceSpec | null {
     if (!Object.hasOwn(this.config.apps, name) || !Object.hasOwn(this.config.environments, environment)) {
       return null;

@@ -150,3 +150,27 @@ test("resolving an unknown service names the ones that exist in that environment
       error.message === 'I don\'t know an app called "billing". I know: sample-app, orders-api.',
   );
 });
+
+// ---- Build numbers ----
+
+test("the first build of a service is number 1", () => {
+  assert.equal(newRegistry().nextVersion("orders-api"), 1);
+});
+
+test("the next build number is one more than the highest in any environment", () => {
+  // Staging and prod share one image repository, so they must never both make "v1".
+  const registry = newRegistry();
+  registry.save(ordersApi({ environment: "staging", lastVersion: 2 }));
+  registry.save(ordersApi({ environment: "prod", lastVersion: 5 }));
+
+  assert.equal(registry.nextVersion("orders-api"), 6);
+});
+
+test("build numbers of another cluster do not count", () => {
+  const file = join(mkdtempSync(join(tmpdir(), "registry-")), "assistant.db");
+  const kind = new ServiceRegistry({ path: file, cluster: "kind-local", config });
+  const eks = new ServiceRegistry({ path: file, cluster: "eks-staging", config });
+  kind.save(ordersApi({ lastVersion: 7 }));
+
+  assert.equal(eks.nextVersion("orders-api"), 1);
+});

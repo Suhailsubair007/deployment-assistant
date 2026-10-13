@@ -120,12 +120,12 @@ export class HistoryStore {
     return row === undefined ? null : toRecord(row);
   }
 
-  /** The most recent deploy or rollback (not scaling, which keeps the image), or null. */
+  /** The most recent change of the image (not scaling or a settings change, which keep it), or null. */
   latestImageChange(environment: string, app: string): DeploymentRecord | null {
     const row = this.db
       .prepare(
         `SELECT * FROM deployments
-          WHERE cluster = ? AND environment = ? AND app = ? AND action != 'scale'
+          WHERE cluster = ? AND environment = ? AND app = ? AND action NOT IN ('scale', 'configure')
           ORDER BY id DESC LIMIT 1`,
       )
       .get(this.cluster, environment, app);

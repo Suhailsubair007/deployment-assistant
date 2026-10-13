@@ -4,7 +4,7 @@ import type { OperationStore } from "@/services/operationStore.ts";
 import type { ServiceRegistry } from "@/services/serviceRegistry.ts";
 import type { ClusterGateway } from "@/types/cluster.ts";
 import type { AppConfig, ResourceAmounts } from "@/types/config.ts";
-import type { EnvVar } from "@/types/service.ts";
+import type { EnvVar, ServiceSpec } from "@/types/service.ts";
 
 /** A change that has been worked out but not carried out yet. Shown to the user for confirmation. */
 export interface ChangePlan {
@@ -20,6 +20,12 @@ export interface ChangePlan {
   replicas: number;
   /** Replicas now; null when the app is not deployed yet. */
   currentReplicas: number | null;
+  /** Set when the change sets the service's settings (create, settings change, rebuild): the settings afterwards. */
+  spec?: ServiceSpec;
+  /** Set for a settings change: the settings now, so the summary can show old and new. */
+  previousSpec?: ServiceSpec;
+  /** Set when the image does not exist yet: the project folder it is built from first. */
+  buildFrom?: string;
 }
 
 export interface StartedOperation {
@@ -45,7 +51,8 @@ export interface DeploymentServiceDeps {
   now?: () => number;
 }
 
-export type DeploymentAction = "deploy" | "rollback" | "scale";
+/** "create" is the first deployment of a service made in the chat; "configure" changes its settings and keeps the image. */
+export type DeploymentAction = "deploy" | "rollback" | "scale" | "create" | "configure";
 
 export type DeploymentStatus = "in_progress" | "succeeded" | "failed" | "timed_out" | "interrupted";
 
@@ -120,4 +127,4 @@ export interface Operation {
   stage?: OperationStage;
 }
 
-export type NewOperation = Pick<Operation, "deploymentId" | "environment" | "app">;
+export type NewOperation = Pick<Operation, "deploymentId" | "environment" | "app" | "stages">;

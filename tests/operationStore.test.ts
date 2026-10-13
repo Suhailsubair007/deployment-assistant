@@ -48,3 +48,27 @@ test("only the most recent operations are kept, so memory does not grow forever"
 
   assert.equal(store.get(first.id), null);
 });
+
+test("an operation that builds an image starts in its first stage and moves through the others", () => {
+  const store = new OperationStore();
+
+  const operation = store.create({
+    deploymentId: 1,
+    environment: "staging",
+    app: "orders-api",
+    stages: ["build", "publish", "pods"],
+  });
+  assert.deepEqual(operation.stages, ["build", "publish", "pods"]);
+  assert.equal(operation.stage, "build");
+
+  store.setStage(operation.id, "publish");
+
+  assert.equal(store.get(operation.id)?.stage, "publish");
+});
+
+test("an operation without stages has none, as before", () => {
+  const operation = new OperationStore().create({ deploymentId: 1, environment: "staging", app: "sample-app" });
+
+  assert.equal(operation.stages, undefined);
+  assert.equal(operation.stage, undefined);
+});

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { MAX_KEPT_OPERATIONS } from "@/constants/deployment.ts";
-import type { NewOperation, Operation, OperationState } from "@/types/deployment.ts";
+import type { NewOperation, Operation, OperationStage, OperationState } from "@/types/deployment.ts";
 
 export class OperationStore {
   private readonly operations = new Map<string, Operation>();
@@ -14,6 +14,9 @@ export class OperationStore {
 
   create(input: NewOperation): Operation {
     const operation: Operation = { id: randomUUID(), ...input, state: "running", steps: [], message: "" };
+    if (input.stages !== undefined) {
+      operation.stage = input.stages[0];
+    }
     this.operations.set(operation.id, operation);
 
     // A Map remembers insertion order, so its first key is the oldest operation.
@@ -36,6 +39,14 @@ export class OperationStore {
     const operation = this.operations.get(id);
     if (operation !== undefined && operation.steps.at(-1) !== step) {
       operation.steps.push(step);
+    }
+  }
+
+  /** Records which stage is running now. */
+  setStage(id: string, stage: OperationStage): void {
+    const operation = this.operations.get(id);
+    if (operation !== undefined) {
+      operation.stage = stage;
     }
   }
 

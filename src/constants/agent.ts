@@ -20,7 +20,12 @@ export const STARTED_MESSAGES: Record<ChangePlan["action"], string> = {
   deploy: "Rolling update started",
   rollback: "Rollback started",
   scale: "Scaling started",
+  create: "Creating the service",
+  configure: "Applying the new settings",
 };
+
+// Said instead of the line above when the image is built first.
+export const BUILD_STARTED = "Build started";
 
 export const INTENT_RULES: [IntentName, RegExp][] = [
   ["rollback", /\broll\s?-?back\b|\brevert\b|\bundo\b/],

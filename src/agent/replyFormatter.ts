@@ -3,6 +3,7 @@ import { formatDeploymentId } from "@/services/historyStore.ts";
 import { formatCpu, formatMemory } from "@/services/units.ts";
 import type { KnownNames } from "@/types/agent.ts";
 import type { ChangePlan, DeploymentRecord } from "@/types/deployment.ts";
+import type { ServiceSpec } from "@/types/service.ts";
 import type {
   AppStatus,
   AppUsage,
@@ -180,6 +181,9 @@ function describeChange(record: DeploymentRecord): string {
   if (record.action === "scale") {
     return `scale ${record.image} to ${plural(record.replicas, "replica")}`;
   }
+  if (record.action === "configure") {
+    return `change settings of ${record.image}`;
+  }
   if (record.previousImage === null) {
     return `${record.action} ${record.image} (first deployment)`;
   }
@@ -213,8 +217,56 @@ export function formatHistory(
 
 // ---- Confirmation ----
 
+/** "100m to 500m": the reserved amount and the most a pod may use. One amount when they are the same. */
+function range(reserved: string, most: string): string {
+  return reserved === most ? reserved : `${reserved} to ${most}`;
+}
+
+/** A service's settings as [name, value] pairs, in the order the summary shows them. */
+function settingRows(spec: ServiceSpec): [string, string][] {
+  const { requests, limits } = spec.resources;
+  return [
+    ["Port", String(spec.port)],
+    ["Health check", spec.healthPath],
+    ["CPU", range(requests.cpu, limits.cpu)],
+    ["Memory", range(requests.memory, limits.memory)],
+    ["Replicas", `${spec.replicas} (at most ${spec.maxReplicas})`],
+    ["Variables", spec.env.length === 0 ? "none" : spec.env.map(({ name, value }) => `${name}=${value}`).join(", ")],
+  ];
+}
+
+/** A headline, then one "name | value" row per setting. The page draws such rows as a table. */
+function formatCreatePlan(plan: ChangePlan, spec: ServiceSpec): string {
+  return [
+    `Create ${plan.app} in ${plan.environment}?`,
+    `Folder | ${plan.buildFrom}`,
+    `Image | ${plan.image}`,
+    ...settingRows(spec).map(([name, value]) => `${name} | ${value}`),
+    "Note: I will build the image from the folder, hand it to the cluster and start the pods. This can take a few minutes.",
+  ].join("\n");
+}
+
+/** Only the settings that differ, each as "name | old -> new". */
+function formatConfigurePlan(plan: ChangePlan, spec: ServiceSpec, previous: ServiceSpec): string {
+  const before = new Map(settingRows(previous));
+  const changes = settingRows(spec)
+    .filter(([name, value]) => before.get(name) !== value)
+    .map(([name, value]) => `${name} | ${before.get(name)} -> ${value}`);
+  return [
+    `Change the settings of ${plan.app} in ${plan.environment}?`,
+    ...changes,
+    `Note: The pods are replaced one at a time with the new settings. The image stays ${plan.image}.`,
+  ].join("\n");
+}
+
 /** The sentence shown above the Confirm and Cancel buttons. */
 export function formatPlan(plan: ChangePlan): string {
+  if (plan.action === "create" && plan.spec !== undefined) {
+    return formatCreatePlan(plan, plan.spec);
+  }
+  if (plan.action === "configure" && plan.spec !== undefined && plan.previousSpec !== undefined) {
+    return formatConfigurePlan(plan, plan.spec, plan.previousSpec);
+  }
   if (plan.action === "rollback") {
     return `Roll back ${plan.app} in ${plan.environment} from ${plan.currentImage} to ${plan.image}?`;
   }
@@ -222,6 +274,10 @@ export function formatPlan(plan: ChangePlan): string {
     return `Scale ${plan.app} in ${plan.environment} from ${plan.currentReplicas} to ${plural(plan.replicas, "replica")}?`;
   }
   const size = `(${plural(plan.replicas, "replica")})`;
+  if (plan.buildFrom !== undefined) {
+    const now = plan.currentImage === null ? "It is not running there yet." : `It runs ${plan.currentImage} now.`;
+    return `Build ${plan.app} from ${plan.buildFrom} and deploy it to ${plan.environment} as ${plan.image} ${size}? ${now}`;
+  }
   if (plan.currentImage === null) {
     return `I'll create deployment "${plan.app}" in namespace "${plan.namespace}" with image ${plan.image} ${size}.`;
   }

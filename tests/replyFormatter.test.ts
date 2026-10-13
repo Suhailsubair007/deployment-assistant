@@ -18,6 +18,7 @@ import type { ChangePlan } from "@/types/deployment.ts";
 import type { DeploymentRecord } from "@/types/deployment.ts";
 import type { AppUsage, PodUsageReport, ResourceUse } from "@/types/monitoring.ts";
 import type { AppStatus } from "@/types/monitoring.ts";
+import type { ServiceSpec } from "@/types/service.ts";
 
 const MI = 1024 * 1024;
 
@@ -354,4 +355,122 @@ test("every request to try is one the built-in rules understand", () => {
   for (const example of formatSuggestions(known)) {
     assert.notEqual(parseMessage(example, known).intent, null, example);
   }
+});
+
+// ---- Summaries for services made in the chat ----
+
+const ORDERS_API: ServiceSpec = {
+  name: "orders-api",
+  environment: "staging",
+  imageRepository: "orders-api",
+  folder: "/Users/asha/code/orders-api",
+  port: 3000,
+  healthPath: "/healthz",
+  replicas: 2,
+  maxReplicas: 5,
+  resources: { requests: { cpu: "100m", memory: "128Mi" }, limits: { cpu: "500m", memory: "256Mi" } },
+  env: [
+    { name: "NODE_ENV", value: "production" },
+    { name: "LOG_LEVEL", value: "info" },
+  ],
+  lastVersion: 1,
+};
+
+const CREATE_PLAN: ChangePlan = {
+  action: "create",
+  environment: "staging",
+  namespace: "staging",
+  app: "orders-api",
+  image: "orders-api:v1",
+  currentImage: null,
+  replicas: 2,
+  currentReplicas: null,
+  spec: ORDERS_API,
+  buildFrom: "/Users/asha/code/orders-api",
+};
+
+test("creating a service is summarised as a headline, one row per setting, and what happens next", () => {
+  assert.equal(
+    formatPlan(CREATE_PLAN),
+    [
+      "Create orders-api in staging?",
+      "Folder | /Users/asha/code/orders-api",
+      "Image | orders-api:v1",
+      "Port | 3000",
+      "Health check | /healthz",
+      "CPU | 100m to 500m",
+      "Memory | 128Mi to 256Mi",
+      "Replicas | 2 (at most 5)",
+      "Variables | NODE_ENV=production, LOG_LEVEL=info",
+      "Note: I will build the image from the folder, hand it to the cluster and start the pods. This can take a few minutes.",
+    ].join("\n"),
+  );
+});
+
+test("a service without variables says so in its summary", () => {
+  const text = formatPlan({ ...CREATE_PLAN, spec: { ...ORDERS_API, env: [] } });
+
+  assert.ok(text.includes("Variables | none"), text);
+});
+
+test("an amount that is the same reserved and at most is written once", () => {
+  const same = { requests: { cpu: "250m", memory: "128Mi" }, limits: { cpu: "250m", memory: "256Mi" } };
+
+  const text = formatPlan({ ...CREATE_PLAN, spec: { ...ORDERS_API, resources: same } });
+
+  assert.ok(text.includes("CPU | 250m\n"), text);
+});
+
+test("a settings change lists only what changes, with the old and the new value", () => {
+  const changed: ServiceSpec = {
+    ...ORDERS_API,
+    resources: { requests: { cpu: "100m", memory: "128Mi" }, limits: { cpu: "500m", memory: "512Mi" } },
+    env: [],
+  };
+
+  const text = formatPlan({
+    ...CREATE_PLAN,
+    action: "configure",
+    currentImage: "orders-api:v1",
+    currentReplicas: 2,
+    spec: changed,
+    previousSpec: ORDERS_API,
+    buildFrom: undefined,
+  });
+
+  assert.equal(
+    text,
+    [
+      "Change the settings of orders-api in staging?",
+      "Memory | 128Mi to 256Mi -> 128Mi to 512Mi",
+      "Variables | NODE_ENV=production, LOG_LEVEL=info -> none",
+      "Note: The pods are replaced one at a time with the new settings. The image stays orders-api:v1.",
+    ].join("\n"),
+  );
+});
+
+test("a rebuild says where it builds from, the new version and what runs now", () => {
+  const rebuild: ChangePlan = { ...CREATE_PLAN, action: "deploy", image: "orders-api:v2", currentImage: "orders-api:v1", currentReplicas: 2 };
+
+  assert.equal(
+    formatPlan(rebuild),
+    "Build orders-api from /Users/asha/code/orders-api and deploy it to staging as orders-api:v2 (2 replicas)? It runs orders-api:v1 now.",
+  );
+  assert.equal(
+    formatPlan({ ...rebuild, currentImage: null, currentReplicas: null }),
+    "Build orders-api from /Users/asha/code/orders-api and deploy it to staging as orders-api:v2 (2 replicas)? It is not running there yet.",
+  );
+});
+
+test("the history describes a created service and a settings change in words", () => {
+  const text = formatHistory(
+    [
+      record({ id: 9, action: "configure", image: "orders-api:v1", previousImage: "orders-api:v1" }),
+      record({ id: 8, action: "create", image: "orders-api:v1", previousImage: null }),
+    ],
+    {},
+  );
+
+  assert.ok(text.includes("dep-009 | staging | change settings of orders-api:v1 |"), text);
+  assert.ok(text.includes("dep-008 | staging | create orders-api:v1 (first deployment) |"), text);
 });
