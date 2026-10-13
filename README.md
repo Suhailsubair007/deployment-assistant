@@ -144,6 +144,14 @@ terraform/       the EKS cluster
 tests/           unit tests
 ```
 
+## What is not done
+
+- **`terraform plan` and `terraform apply` have not been run against AWS yet.** The Terraform code passes `fmt`, `validate` and `tflint`, and the assistant's Kubernetes permissions were tested on kind, but nothing has been created in an AWS account so far.
+- **Bonus features** from the test are not built: automatic rollback, charts, autoscaler status, fix suggestions, a logs command, login, Helm support, and running the assistant inside the cluster.
+- **No login.** The name in the top right corner is typed by the user and stored as "requested by"; it does not prove who they are.
+- **One backend instance.** Conversations and rollout progress are kept in memory, and the one-change-at-a-time lock is a local SQLite file.
+- **No PodDisruptionBudget** in the Deployment template.
+
 ## Clean up
 
 ```bash
