@@ -287,6 +287,14 @@
   }
 }
 
+/* A soft glow of the accent colour behind the top of the page. The page and the splash screen both have it. */
+@utility page-glow {
+  background-image:
+    radial-gradient(60rem 28rem at 10% -10%, color-mix(in oklab, var(--primary) 14%, transparent), transparent 70%),
+    radial-gradient(44rem 24rem at 100% 0%, color-mix(in oklab, var(--primary) 8%, transparent), transparent 70%);
+  background-repeat: no-repeat;
+}
+
 /* The conversation fades out at its top and bottom edge instead of being cut off there. */
 @utility edge-fade {
   mask-image: linear-gradient(to bottom, transparent, black 18px, black calc(100% - 12px), transparent);
@@ -552,12 +560,7 @@
     @apply font-sans;
   }
   body {
-    @apply bg-background text-foreground;
-    /* A soft glow of the accent colour behind the top of the page. */
-    background-image:
-      radial-gradient(60rem 28rem at 10% -10%, color-mix(in oklab, var(--primary) 14%, transparent), transparent 70%),
-      radial-gradient(44rem 24rem at 100% 0%, color-mix(in oklab, var(--primary) 8%, transparent), transparent 70%);
-    background-repeat: no-repeat;
+    @apply page-glow bg-background text-foreground;
   }
 }
 
@@ -571,6 +574,11 @@
 
   /* Confetti that cannot fly away would stay on Rollo, so it is left out. */
   .confetti {
+    display: none;
+  }
+
+  /* The splash screen is only movement, so it is left out too and the page shows at once. */
+  .splash {
     display: none;
   }
 }

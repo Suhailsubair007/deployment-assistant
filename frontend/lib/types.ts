@@ -103,3 +103,6 @@ export interface RolloutStep {
 }
 
 export type Tone = "healthy" | "degraded" | "down" | "neutral";
+
+/** What the splash screen shows: the spinner, then "Ready", then it fades out and is taken off the page. */
+export type SplashStage = "starting" | "ready" | "leaving" | "gone";
