@@ -1,0 +1,204 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+/* The theme button puts the class "dark" on <html>; "dark:" styles follow it. */
+@custom-variant dark (&:is(.dark *));
+
+/* Colours come first. :root holds the light values and .dark the dark ones.
+   The first group uses the names shadcn/ui components expect. */
+:root {
+  --background: #f2f4f7;
+  --foreground: #17202c;
+  --card: #ffffff;
+  --card-foreground: #17202c;
+  --popover: #ffffff;
+  --popover-foreground: #17202c;
+  /* Accent: buttons, focus rings and the user's own messages. Never used for a status. */
+  --primary: #2f6be0;
+  --primary-strong: #2457c2;
+  --primary-foreground: #ffffff;
+  --secondary: #f6f7f9;
+  --secondary-foreground: #17202c;
+  --muted: #e9edf2;
+  --muted-foreground: #5a6779;
+  --accent: #e8f0fe;
+  --accent-foreground: #17202c;
+  --destructive: #c8372d;
+  --border: #dde2ea;
+  --input: #c3cbd7;
+  --ring: #2f6be0;
+  --radius: 0.625rem;
+
+  /* A slightly sunken surface: agent replies, the message box. */
+  --sunken: #f6f7f9;
+
+  /* The top bar is dark in both themes, like a cloud console. */
+  --ink: #101826;
+  --on-ink: #eef2f8;
+  --on-ink-muted: #9aa8bc;
+
+  /* Status colours. Each has a text colour, a soft background and a solid fill. */
+  --healthy: #14734a;
+  --healthy-soft: #e3f5eb;
+  --healthy-solid: #1f9d62;
+  --degraded: #8a5700;
+  --degraded-soft: #fcf0d4;
+  --degraded-solid: #d9950b;
+  --down: #b42c22;
+  --down-soft: #fce6e3;
+  --down-solid: #c8372d;
+  --on-down: #ffffff;
+  --neutral-solid: #8c98a8;
+}
+
+.dark {
+  --background: #0c1119;
+  --foreground: #e5eaf1;
+  --card: #131a24;
+  --card-foreground: #e5eaf1;
+  --popover: #131a24;
+  --popover-foreground: #e5eaf1;
+  --primary: #6ba2ff;
+  --primary-strong: #8ab5ff;
+  --primary-foreground: #0a1220;
+  --secondary: #0e141d;
+  --secondary-foreground: #e5eaf1;
+  --muted: #1f2936;
+  --muted-foreground: #94a2b6;
+  --accent: #17294a;
+  --accent-foreground: #e5eaf1;
+  --destructive: #ef5f54;
+  --border: #232d3b;
+  --input: #36445a;
+  --ring: #6ba2ff;
+
+  --sunken: #0e141d;
+  --ink: #080c12;
+
+  --healthy: #6fd6a0;
+  --healthy-soft: #12301f;
+  --healthy-solid: #3dbb7c;
+  --degraded: #f0c263;
+  --degraded-soft: #382b0e;
+  --degraded-solid: #e0a62b;
+  --down: #ff8e84;
+  --down-soft: #3d1a17;
+  --down-solid: #ef5f54;
+  --on-down: #1c0806;
+  --neutral-solid: #6c7a8d;
+}
+
+/* A tone is one of the four status looks. It only sets three colours; the status
+   label and the environment card read them, so neither needs to know the status. */
+[data-tone="healthy"] {
+  --tone: var(--healthy);
+  --tone-soft: var(--healthy-soft);
+  --tone-solid: var(--healthy-solid);
+}
+
+[data-tone="degraded"] {
+  --tone: var(--degraded);
+  --tone-soft: var(--degraded-soft);
+  --tone-solid: var(--degraded-solid);
+}
+
+[data-tone="down"] {
+  --tone: var(--down);
+  --tone-soft: var(--down-soft);
+  --tone-solid: var(--down-solid);
+}
+
+[data-tone="neutral"] {
+  --tone: var(--muted-foreground);
+  --tone-soft: var(--muted);
+  --tone-solid: var(--neutral-solid);
+}
+
+/* This makes every colour above usable as a Tailwind class, for example bg-sunken. */
+@theme inline {
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  --font-heading: var(--font-sans);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-strong: var(--primary-strong);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-sunken: var(--sunken);
+  --color-ink: var(--ink);
+  --color-on-ink: var(--on-ink);
+  --color-on-ink-muted: var(--on-ink-muted);
+  --color-healthy-solid: var(--healthy-solid);
+  --color-down: var(--down);
+  --color-down-soft: var(--down-soft);
+  --color-down-solid: var(--down-solid);
+  --color-on-down: var(--on-down);
+  --color-tone: var(--tone);
+  --color-tone-soft: var(--tone-soft);
+  --color-tone-solid: var(--tone-solid);
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* The three dots of "Working on it", and the pod that is starting right now. */
+  --animate-dot: dot 1.2s ease-in-out infinite;
+  --animate-pod-starting: pod-starting 1.2s ease-in-out infinite;
+
+  @keyframes dot {
+    0%,
+    60%,
+    100% {
+      opacity: 0.3;
+    }
+    30% {
+      opacity: 1;
+    }
+  }
+
+  @keyframes pod-starting {
+    50% {
+      opacity: 0.35;
+    }
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* For people who asked their system for less movement: everything stands still. */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+  }
+}

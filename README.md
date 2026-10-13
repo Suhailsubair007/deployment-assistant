@@ -17,7 +17,9 @@ It runs against a local [kind](https://kind.sigs.k8s.io/) cluster and against AW
 | kubectl | 1.37 | Setup scripts only. The app itself never runs `kubectl` |
 | Terraform, AWS CLI | 1.16, 2.x | Only for the EKS cluster |
 
-**Why Node.js 24 and TypeScript.** Node.js is what I work in every day, and Kubernetes has an official client library for it. TypeScript catches wrong field names in Kubernetes objects before the code runs. Node 24 runs `.ts` files directly, so there is no build step. Node's built-in test runner and built-in SQLite keep the project to three runtime dependencies: `express`, `@kubernetes/client-node` and `yaml`.
+**Why Node.js 24 and TypeScript.** Node.js is what I work in every day, and Kubernetes has an official client library for it. TypeScript catches wrong field names in Kubernetes objects before the code runs. Node 24 runs `.ts` files directly, so the server has no build step. Node's built-in test runner and built-in SQLite keep the server to three runtime dependencies: `express`, `@kubernetes/client-node` and `yaml`.
+
+**The page** is a Next.js app (React, Tailwind and shadcn/ui components) in [frontend/](frontend/). `npm run build` turns it into plain HTML, CSS and JavaScript files once, and the same Express server serves them. So there is still one process and one address, and no Next.js server runs.
 
 ## Run it locally
 
@@ -25,12 +27,15 @@ This takes about five minutes on a first run. Most of that is Docker downloading
 
 ```bash
 npm install
+npm run build               # builds the page into frontend/out, about 10 seconds
 ./scripts/kind-up.sh        # creates the cluster, about 2 to 3 minutes
 cp .env.example .env
 npm start
 ```
 
 Then open <http://127.0.0.1:3000>.
+
+To work on the page with hot reload, keep `npm start` running and run `npm run dev:web` in a second terminal, then open <http://127.0.0.1:3001>. Run `npm run build` again when you are done, because `npm start` serves the built files.
 
 `kind-up.sh` creates a kind cluster named `deploy-assistant` and puts into it what the assistant expects to find:
 
@@ -116,10 +121,13 @@ Everything in the chat still works. Deleting, reading Secrets and other namespac
 
 ```bash
 npm test             # unit tests; no cluster needed
-npm run typecheck    # TypeScript type check
+npm run typecheck    # TypeScript type check of the server
+npm run build        # builds the page; this also type-checks it
 ```
 
 The tests replace the cluster with an in-memory fake ([tests/helpers/fakeGateway.ts](tests/helpers/fakeGateway.ts)). They cover intent parsing, unit conversion, health evaluation, deploy, roll back, scaling, the one-change-at-a-time lock and every failure message.
+
+The page's logic that needs no browser is tested too ([frontend/tests/](frontend/tests/)): the API call and its error sentences, how a reply is cut into lines, the Confirm and Cancel notes, and the pod counts. The React components themselves have no automated tests; they were checked by hand in the browser.
 
 ## Settings
 
@@ -132,7 +140,7 @@ The tests replace the cluster with an in-memory fake ([tests/helpers/fakeGateway
 ## Where things are
 
 ```
-frontend/        the chat page (plain HTML, CSS and JavaScript)
+frontend/        the chat page (Next.js with shadcn/ui; built into frontend/out)
 src/api/         web routes and error messages
 src/agent/       understands messages, keeps one conversation per tab, holds the Confirm step
 src/services/    deploy, roll back, scale, health, CPU and memory, history

@@ -21,6 +21,12 @@ kubeconfig*
 crash.log
 *.tfplan
 
+# Next.js: the built page and files it generates
+frontend/.next/
+frontend/out/
+frontend/next-env.d.ts
+*.tsbuildinfo
+
 # Editor and OS files
 .DS_Store
 .vscode/

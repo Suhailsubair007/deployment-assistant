@@ -18,7 +18,7 @@ export interface AppDeps {
   operations: OperationStore;
   statuses: StatusService;
   sessions: SessionStore;
-  /** Folder with index.html, app.js and styles.css. Left out in tests. */
+  /** Folder with the built page (frontend/out). Left out in tests. */
   staticFolder?: string;
   /** Where unexpected errors are logged. Tests silence it. */
   logError?: ErrorLogger;

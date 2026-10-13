@@ -4,6 +4,7 @@
 //
 // Settings come from environment variables (see .env.example).
 
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 
 import { Agent } from "./agent/agent.ts";
@@ -19,6 +20,8 @@ import { OperationStore } from "./services/operationStore.ts";
 import { StatusService } from "./services/statusService.ts";
 
 const HOST = "127.0.0.1"; // reachable from this machine only
+// The page is a Next.js app. "npm run build" writes it as plain files into this folder.
+const PAGE_FOLDER = join(import.meta.dirname, "../frontend/out");
 const port = Number(process.env.PORT || 3000);
 
 function start(): void {
@@ -50,7 +53,7 @@ function start(): void {
     operations,
     statuses,
     sessions,
-    staticFolder: join(import.meta.dirname, "../frontend"),
+    staticFolder: PAGE_FOLDER,
   });
 
   app.listen(port, HOST, () => {
@@ -58,6 +61,9 @@ function start(): void {
     console.log(`Kubernetes context: ${gateway.contextName()}`);
     console.log(`Environments: ${Object.keys(config.environments).join(", ")}`);
     console.log("Message parsing: rule-based. No LLM is used, so no API key is needed.");
+    if (!existsSync(join(PAGE_FOLDER, "index.html"))) {
+      console.log('The page is not built yet. Run "npm run build", then reload the browser.');
+    }
     if (interrupted > 0) {
       console.log(`${interrupted} deployment(s) were left unfinished by the last run and are now marked "interrupted".`);
     }
