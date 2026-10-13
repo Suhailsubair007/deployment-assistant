@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { getOperation } from "@/lib/api";
 import { messageOf } from "@/lib/http";
 import type { Operation } from "@/lib/types";
-import { PROGRESS_POLL_MS } from "@/lib/constants";
+import { PROGRESS_FAILURES_BEFORE_GIVING_UP, PROGRESS_POLL_MS } from "@/lib/constants";
 
 /** Asks the server once a second how a running change is doing. */
 export function useOperation(operationId: string) {
@@ -15,6 +15,7 @@ export function useOperation(operationId: string) {
   useEffect(() => {
     let stopped = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let failuresInARow = 0;
 
     async function check(): Promise<void> {
       try {
@@ -22,12 +23,20 @@ export function useOperation(operationId: string) {
         if (stopped) {
           return;
         }
+        failuresInARow = 0;
         setOperation(answer.operation);
         if (answer.operation.state === "running") {
           timer = setTimeout(check, PROGRESS_POLL_MS);
         }
       } catch (caught) {
-        if (!stopped) {
+        if (stopped) {
+          return;
+        }
+        failuresInARow += 1;
+        if (failuresInARow < PROGRESS_FAILURES_BEFORE_GIVING_UP) {
+          // Probably a hiccup: ask again in a second.
+          timer = setTimeout(check, PROGRESS_POLL_MS);
+        } else {
           setError(messageOf(caught));
         }
       }

@@ -38,6 +38,10 @@ export const MOOD_OF_ROLLOUT: Record<RolloutState, RolloMood> = {
 /** How often the page asks for the progress of a running change. */
 export const PROGRESS_POLL_MS = 1000;
 
+// A build can run for minutes. One request that fails on the way (a short network
+// hiccup) must not end the follow, so it gives up only after this many failures in a row.
+export const PROGRESS_FAILURES_BEFORE_GIVING_UP = 5;
+
 /** How long the splash screen takes to fade out. */
 export const SPLASH_FADE_MS = 450;
 
