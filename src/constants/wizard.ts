@@ -135,6 +135,15 @@ export function editChoices(name: string, environment: string): string {
   return `Type one of: ${labels}. To change the number of copies, type: scale ${name} in ${environment} to 3.`;
 }
 
+// ---- The conversation ----
+
+// At most this many question conversations are kept open; the oldest is forgotten first.
+// It matches the number of chat sessions the assistant keeps.
+export const MAX_OPEN_FLOWS = 500;
+
+/** Said when an answer arrives for a conversation that is no longer kept, for example after a restart. */
+export const FLOW_LOST = 'I lost track of these questions. Type "create a service" to start again.';
+
 // ---- The replies that end the questions ----
 
 export const CREATE_CANCELLED = "Cancelled. Nothing was created.";

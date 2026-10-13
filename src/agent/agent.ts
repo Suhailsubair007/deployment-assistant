@@ -15,7 +15,8 @@ import {
   formatTopPod,
   formatUsage,
 } from "@/agent/replyFormatter.ts";
-import { answerWizard, startCreate, startEdit } from "@/agent/serviceWizard.ts";
+import { createServiceFlow } from "@/agent/serviceFlow.ts";
+import { startCreate, startEdit } from "@/agent/serviceWizard.ts";
 import type { SessionStore } from "@/agent/sessionStore.ts";
 import {
   BUILD_STARTED,
@@ -35,10 +36,18 @@ import { formatDeploymentId } from "@/services/historyStore.ts";
 import type { HistoryStore } from "@/services/historyStore.ts";
 import type { ServiceRegistry } from "@/services/serviceRegistry.ts";
 import type { StatusService } from "@/services/statusService.ts";
-import type { AgentDeps, AgentReply, KnownNames, MessageReader, ParsedMessage, Session } from "@/types/agent.ts";
+import type {
+  AgentDeps,
+  AgentReply,
+  KnownNames,
+  MessageReader,
+  OpenQuestions,
+  ParsedMessage,
+  Session,
+} from "@/types/agent.ts";
 import type { AppConfig } from "@/types/config.ts";
 import type { ChangePlan, HistoryFilter } from "@/types/deployment.ts";
-import type { Wizard, WizardContext, WizardStep } from "@/types/wizard.ts";
+import type { ServiceFlow, WizardContext, WizardStep } from "@/types/wizard.ts";
 
 export class Agent {
   private readonly config: AppConfig;
@@ -48,6 +57,7 @@ export class Agent {
   private readonly sessions: SessionStore;
   private readonly registry: ServiceRegistry;
   private readonly reader: MessageReader;
+  private readonly questions: ServiceFlow;
   private readonly now: () => number;
   private readonly known: KnownNames;
 
@@ -61,6 +71,7 @@ export class Agent {
     this.now = deps.now ?? Date.now;
     this.known = liveNames(deps.config, deps.registry);
     this.reader = deps.reader ?? createRuleReader(this.known);
+    this.questions = deps.questions ?? createServiceFlow({ context: () => this.wizardContext() });
   }
 
   // ---- Entry points, called by the web layer ----
@@ -71,11 +82,11 @@ export class Agent {
     this.sessions.addMessage(session, { role: "user", text, at: new Date(this.now()) });
 
     // While the questions for a service are open, every message is an answer to the
-    // current one. It is checked by fixed rules and never handed to the message reader,
-    // so a folder path or a variable is not sent to OpenAI.
-    if (session.wizard !== undefined) {
-      const wizard = session.wizard;
-      const reply = await this.asReply(() => this.continueWizard(session, wizard, text));
+    // current one. It goes to the question flow, where fixed rules check it. It is never
+    // handed to the message reader, so a folder path or a variable is not sent to OpenAI.
+    if (session.questions !== undefined) {
+      const open = session.questions;
+      const reply = await this.asReply(() => this.continueQuestions(session, open, text));
       this.record(session, reply);
       return reply;
     }
@@ -177,7 +188,11 @@ export class Agent {
         session.awaiting = undefined;
         // Said now, not after ten answers, when images cannot be built for this cluster.
         this.deployments.assertCanBuild();
-        return this.startAsking(session, startCreate(this.wizardContext(), { environment: request.environment }));
+        return this.openQuestions(
+          session,
+          "create",
+          startCreate(this.wizardContext(), { environment: request.environment }),
+        );
     }
 
     const apps = this.known.apps;
@@ -201,7 +216,7 @@ export class Agent {
         session.app = app;
         session.environment = environment;
         const { spec } = this.registry.resolve(environment, app);
-        return this.startAsking(session, startEdit(spec, this.wizardContext()));
+        return this.openQuestions(session, "edit", startEdit(spec, this.wizardContext()));
       }
 
       case "deploy": {
@@ -287,42 +302,46 @@ export class Agent {
     return request.intent === "status" ? formatFullStatus(status) : formatHealth(status);
   }
 
-  // ---- The questions for creating or changing a service ----
+  // ---- The questions for creating or changing a service (a LangGraph workflow, see serviceFlow.ts) ----
 
-  /** Takes one answer. A bad answer gets the question again; the last answer gets the summary to confirm. */
-  private async continueWizard(session: Session, wizard: Wizard, text: string): Promise<AgentReply> {
-    const step = answerWizard(wizard, text, this.wizardContext());
+  /** Starts a new conversation in the question flow and gives its first question as the reply. */
+  private async openQuestions(session: Session, kind: OpenQuestions["kind"], first: WizardStep): Promise<AgentReply> {
+    const thread = randomUUID();
+    const step = await this.questions.start(thread, first);
+    if (step.kind === "done") {
+      // The flow always pauses at a question first; this cannot happen.
+      throw new Error("The questions for a service ended before the first one was asked.");
+    }
+    session.questions = step.kind === "ask" ? { kind, thread } : undefined;
+    return { text: step.text };
+  }
 
-    if (step.kind === "ask" && step.rejected === true && parseMessage(text, this.known).intent !== null) {
-      // Not an answer but another request, for example "deploy sample-app version v2 to staging".
+  /** Hands one answer to the question flow. A bad answer gets the question again; the last one gets the summary to confirm. */
+  private async continueQuestions(session: Session, open: OpenQuestions, text: string): Promise<AgentReply> {
+    const step = await this.questions.answer(open.thread, text);
+
+    if (step.kind === "ask") {
+      // A refused answer of several words that the rules read as a request, for example
+      // "deploy sample-app version v2 to staging", is another request and not an answer.
       // It is not carried out: one thing at a time. The questions stay where they are.
-      return { text: `${WIZARD_BUSY[wizard.kind]}\n${step.question}` };
-    }
-    if (step.kind !== "done") {
-      return this.keepAsking(session, step);
+      // A single word such as "health" is a wrong answer and gets the usual reason.
+      const severalWords = /\s/.test(text.trim());
+      if (step.rejected === true && severalWords && parseMessage(text, this.known).intent !== null) {
+        return { text: `${WIZARD_BUSY[open.kind]}\n${step.question}` };
+      }
+      return { text: step.text };
     }
 
-    session.wizard = undefined;
+    // The questions are over: cancelled, lost, or every answer is in.
+    session.questions = undefined;
+    if (step.kind === "cancelled") {
+      return { text: step.text };
+    }
     const plan =
-      wizard.kind === "create"
+      open.kind === "create"
         ? await this.deployments.planCreate(step.spec)
         : await this.deployments.planConfigure(step.spec);
     return this.offer(session, plan);
-  }
-
-  /** Opens the questions with the first one. */
-  private startAsking(session: Session, first: WizardStep): AgentReply {
-    if (first.kind === "done") {
-      // The questions always start with a question; this cannot happen.
-      throw new Error("The questions for a service ended before the first one was asked.");
-    }
-    return this.keepAsking(session, first);
-  }
-
-  /** A question keeps the questions open and is the reply; "cancel" closes them. */
-  private keepAsking(session: Session, step: Exclude<WizardStep, { kind: "done" }>): AgentReply {
-    session.wizard = step.kind === "ask" ? step.wizard : undefined;
-    return { text: step.text };
   }
 
   /** What the questions may know about the world: names, defaults, and a look at a project folder. */

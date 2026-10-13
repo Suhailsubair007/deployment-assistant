@@ -62,3 +62,21 @@ export type WizardStep =
   | { kind: "cancelled"; text: string }
   /** Every answer is in: the finished settings. For an edit, `spec` is the original with the change applied. */
   | { kind: "done"; spec: ServiceSpec };
+
+/**
+ * The questions as a conversation that pauses and resumes. Each conversation has a
+ * name of its own (the thread), so two browser tabs never share one.
+ */
+export interface ServiceFlow {
+  /** Opens a conversation at its first question and returns that question, now waiting for an answer. */
+  start(thread: string, first: WizardStep): Promise<WizardStep>;
+  /** Hands in one answer. Returns the next question, the same one again, or how the questions ended. */
+  answer(thread: string, text: string): Promise<WizardStep>;
+}
+
+export interface ServiceFlowDeps {
+  /** What the questions may know about the world. Asked for at each answer, so it is always current. */
+  context: () => WizardContext;
+  /** How many conversations are kept open at once. Left out, a fixed number. */
+  maxOpen?: number;
+}

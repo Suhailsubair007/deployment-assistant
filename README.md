@@ -23,7 +23,7 @@ One thing to know before you start: to build an image, the assistant runs Docker
 
 `docker`, `kind`, `aws` and `terraform` are the only four programs the assistant starts. It starts them from one file, with a list of arguments and no shell.
 
-**Why Node.js 24 and TypeScript.** Node.js is what I work in every day, and Kubernetes has an official client library for it. TypeScript catches wrong field names in Kubernetes objects before the code runs. Node 24 runs `.ts` files directly, so the server has no build step. Node's built-in test runner and built-in SQLite keep the server's own runtime dependencies to three: `express`, `@kubernetes/client-node` and `yaml`. Three more, `@langchain/langgraph`, `@langchain/core` and `openai`, are used only when OpenAI reads the chat messages (see [Understanding messages](#understanding-messages-rules-or-openai)). Starting programs uses Node's built-in `child_process`, so building images added no dependency.
+**Why Node.js 24 and TypeScript.** Node.js is what I work in every day, and Kubernetes has an official client library for it. TypeScript catches wrong field names in Kubernetes objects before the code runs. Node 24 runs `.ts` files directly, so the server has no build step. Node's built-in test runner and built-in SQLite keep the server's own runtime dependencies to three: `express`, `@kubernetes/client-node` and `yaml`. `@langchain/langgraph` (with `@langchain/core`, which it needs) runs two small workflows: the questions for a new service, and reading a message with OpenAI. `openai` is used only when OpenAI reads the chat messages (see [Understanding messages](#understanding-messages-rules-or-openai)). Starting programs uses Node's built-in `child_process`, so building images added no dependency.
 
 **The page** is a Next.js app (React, Tailwind and shadcn/ui components) in [frontend/](frontend/). `npm run build` turns it into plain HTML, CSS and JavaScript files once, and the same Express server serves them. So there is still one process and one address, and no Next.js server runs.
 
@@ -111,7 +111,7 @@ Three things to know:
 
 - **Nothing is built or changed before Confirm.** The questions only collect answers.
 - **One thing at a time.** If you type another request in the middle of the questions, the assistant does not act on it. It says so and repeats the question.
-- **The answers stay on your machine.** While the questions are open, each answer is checked by fixed rules and is not sent to OpenAI, even when a key is set.
+- **The answers stay on your machine.** While the questions are open, each answer is checked by fixed rules and is not sent to OpenAI, even when a key is set. The questions run as a LangGraph workflow that pauses at each question and continues with your answer; there is no language model in it, so it works without a key.
 
 The default answers and the folders you may build from are in [config/app.config.yaml](config/app.config.yaml) under `serviceDefaults` and `build`.
 
@@ -238,7 +238,7 @@ The page's logic that needs no browser is tested too ([frontend/tests/](frontend
 ```
 frontend/        the chat page (Next.js with shadcn/ui; built into frontend/out)
 src/api/         web routes and error messages
-src/agent/       understands messages (rules, or OpenAI through LangGraph), keeps one conversation per tab, holds the Confirm step
+src/agent/       understands messages (rules, or OpenAI through LangGraph), asks the questions for a service (a LangGraph workflow), keeps one conversation per tab, holds the Confirm step
 src/services/    deploy, roll back, scale, health, CPU and memory, history, the list of services
 src/cluster/     the only code that uses the Kubernetes library
 src/build/       the only code that starts programs: docker, kind, aws and terraform

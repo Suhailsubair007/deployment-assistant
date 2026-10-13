@@ -5,7 +5,7 @@ import type { ServiceRegistry } from "@/services/serviceRegistry.ts";
 import type { StatusService } from "@/services/statusService.ts";
 import type { AppConfig, LlmSettings } from "@/types/config.ts";
 import type { ChangePlan } from "@/types/deployment.ts";
-import type { Wizard } from "@/types/wizard.ts";
+import type { ServiceFlow } from "@/types/wizard.ts";
 
 export interface AgentReply {
   text: string;
@@ -27,6 +27,8 @@ export interface AgentDeps {
   registry: ServiceRegistry;
   /** How messages are read. Left out, the built-in rules read them. */
   reader?: MessageReader;
+  /** The questions for creating or changing a service. Left out, the LangGraph workflow in serviceFlow.ts. */
+  questions?: ServiceFlow;
   /** The current time in milliseconds. Tests replace this. */
   now?: () => number;
 }
@@ -117,6 +119,12 @@ export interface Session {
   awaiting?: ParsedMessage;
   /** A change that waits for Confirm or Cancel. At most one at a time. */
   pending?: PendingAction;
-  /** The questions for creating or changing a service, while they are being asked. */
-  wizard?: Wizard;
+  /** Set while the questions for a service are open: which kind, and the name of their conversation in the question flow. */
+  questions?: OpenQuestions;
+}
+
+export interface OpenQuestions {
+  kind: "create" | "edit";
+  /** The conversation's own name in the question flow. A new one for every "create" or "edit". */
+  thread: string;
 }

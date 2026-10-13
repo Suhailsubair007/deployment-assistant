@@ -18,7 +18,7 @@ flowchart TB
             reader["Message reader<br/>picks rules or OpenAI at startup"]
             parser["Intent parser<br/>rule-based, always available"]
             llm["OpenAI reader<br/>LangGraph workflow, only with an API key"]
-            wizard["Service questions<br/>create and edit, fixed rules, never read by OpenAI"]
+            wizard["Service questions<br/>LangGraph workflow: pauses at each question,<br/>fixed rules, never read by OpenAI"]
             formatter["Reply formatter"]
         end
 
@@ -110,9 +110,9 @@ The Deployment service sees only two small interfaces from `src/types/build.ts`:
 
 **The service registry.** `ServiceRegistry` (`src/services/serviceRegistry.ts`) answers "which services exist, and with which settings". It reads two places: the `apps:` section of the config file, whose apps exist in every environment, and a `services` table in the same SQLite file as the history, with one row per cluster, environment and name. The intent parser, the OpenAI reader and the status panel ask the registry every time they need the names, so a service created a moment ago is known without a restart. `sample-app` is still a config app, so every earlier command works as before.
 
-Reading a chat message has the same kind of boundary. The Agent asks a message reader, and gets the same small request back whether the rules or OpenAI read the message. LangGraph is used in one file (`src/agent/openAiReader.ts`) and the OpenAI library in one file (`src/agent/openAiModel.ts`). Section 10 explains the two readers.
+Reading a chat message has the same kind of boundary. The Agent asks a message reader, and gets the same small request back whether the rules or OpenAI read the message. LangGraph is used in two files: `src/agent/openAiReader.ts` for reading a message with OpenAI, and `src/agent/serviceFlow.ts` for the service questions. The OpenAI library is used in one file (`src/agent/openAiModel.ts`). Section 10 explains the two readers and the question workflow.
 
-The questions that create or edit a service are a separate piece of the Agent layer (`src/agent/serviceWizard.ts`). They read no file and call no cluster. What they need from outside (the environments, the default values, "is this name taken", "check this folder") is handed in, so the same answers always give the same result. While the questions are open, the message reader is not used at all (section 10).
+The questions that create or edit a service are a separate piece of the Agent layer, in two files. `src/agent/serviceWizard.ts` holds the questions and the rule for each answer, as pure functions. `src/agent/serviceFlow.ts` runs them as a LangGraph workflow that pauses at each question and continues with the user's answer (section 10). They read no file and call no cluster. What they need from outside (the environments, the default values, "is this name taken", "check this folder") is handed in, so the same answers always give the same result. While the questions are open, the message reader is not used at all (section 10).
 
 **Trade-offs.**
 
@@ -321,7 +321,7 @@ Two of the thirteen are new: `create_service` and `edit_service`. They only open
 | The names of the environments and of the services, so the model can recognise them. This now includes the names of services created from the chat | What `docker`, `kind`, `aws` or `terraform` printed, and the contents of a Dockerfile |
 | | The assistant's own replies, including the summary shown before Confirm |
 
-The rule behind the first row is in `handleMessage` in `src/agent/agent.ts`: while the questions are open, every message goes to `src/agent/serviceWizard.ts`, which checks it with fixed rules, and the message reader is not called. A unit test counts the calls to prove it. Whether a message typed in the middle is another request is also decided locally, by the rule-based parser.
+The rule behind the first row is in `handleMessage` in `src/agent/agent.ts`: while the questions are open, every message goes to the question workflow (`src/agent/serviceFlow.ts`), whose `check` step runs the fixed rules of `src/agent/serviceWizard.ts`, and the message reader is not called. A unit test counts the calls to prove it. Whether a message typed in the middle is another request is also decided locally, by the rule-based parser.
 
 One thing to know: the message that starts the questions is read like any other. If a user writes a folder path or a password into that first sentence, it is sent. The questions that follow are not.
 
@@ -338,6 +338,23 @@ flowchart LR
 ```
 
 **Why LangGraph for three steps.** Plain code with a try/catch would also work at this size. With LangGraph the steps and the fallback path are named and can be drawn, and a further step (a second model, a retry with a different prompt) is one more node. The price is two more dependencies for a small graph.
+
+**The service questions are a second LangGraph workflow, with no model in it** (`src/agent/serviceFlow.ts`):
+
+```mermaid
+flowchart LR
+    start([first question]) --> ask["ask<br/>pauses the graph and<br/>hands the question to the chat"]
+    ask -- "the user's next message" --> check["check<br/>fixed rules of serviceWizard.ts"]
+    check -- "bad answer: same question<br/>good answer: next question" --> ask
+    check -- "every answer is in, or cancel" --> done([settings for the summary, or nothing])
+```
+
+- **`ask` pauses.** It calls LangGraph's `interrupt` with the open question. The graph stops there and the question becomes the chat reply. The user's next message is passed back in with `Command({ resume })`, and the graph continues from `ask`.
+- **`check` decides.** It runs the same pure functions as before: the same question again with the reason, the next question, the finished settings, or cancel. A question is open: back to `ask`. Otherwise the graph ends.
+- **LangGraph keeps the state.** Between two messages, where a conversation is (which question, the answers so far) is held by the graph's checkpointer, under a name of its own per conversation (the thread). The session only remembers that questions are open and that name. The checkpointer is the in-memory one, so a restart ends open conversations, the same as the chat sessions; at most 500 are kept.
+- **No model.** There is no OpenAI step in this graph. It runs without a key, the same answers always give the same result, and an answer never leaves the machine.
+
+**Why LangGraph here.** Pausing for a person and continuing with their answer is what its `interrupt` and checkpointer are made for, so the "which question are we on" bookkeeping is the library's and not hand-written. The questions and their rules stay plain functions that are tested alone. A checkpointer that writes to a database would let open conversations survive a restart without changing the graph. The price: the pause-and-continue behaviour has to be understood (on the way back in, the `ask` step runs again from its first line, so it does nothing before `interrupt`), and LangGraph is now needed even when no OpenAI key is set.
 
 **Risks of letting an LLM choose the action, and how each is limited.**
 

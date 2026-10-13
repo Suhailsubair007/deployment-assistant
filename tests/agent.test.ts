@@ -20,7 +20,9 @@ import { OperationStore } from "@/services/operationStore.ts";
 import { ServiceRegistry } from "@/services/serviceRegistry.ts";
 import type { ServiceSpec } from "@/types/service.ts";
 import { StatusService } from "@/services/statusService.ts";
+import { createServiceFlow } from "@/agent/serviceFlow.ts";
 import type { BuildTools } from "@/types/build.ts";
+import type { ServiceFlow, WizardContext } from "@/types/wizard.ts";
 import { FakeBuildTools } from "./helpers/fakeBuildTools.ts";
 import { FakeGateway } from "./helpers/fakeGateway.ts";
 
@@ -40,7 +42,7 @@ writeFileSync(join(FOLDER, "Dockerfile"), "FROM node:24-alpine\nEXPOSE 3000\n");
  * @param reader how messages are read; left out, the agent uses the built-in rules
  * @param build what builds images; left out, a pretend builder that behaves like a kind cluster. Null: nothing can be built.
  */
-async function setup(reader?: MessageReader, build: BuildTools | null = new FakeBuildTools()) {
+async function setup(reader?: MessageReader, build: BuildTools | null = new FakeBuildTools(), questions?: ServiceFlow) {
   const gateway = new FakeGateway();
   gateway.seed("staging", "sample-app", "sample-app:v1", 3);
   for (const pod of await gateway.listPods("staging", "sample-app")) {
@@ -72,6 +74,7 @@ async function setup(reader?: MessageReader, build: BuildTools | null = new Fake
     statuses: new StatusService({ gateway, history, config, registry, explainer, metrics: new MetricsService(gateway) }),
     now: () => nowMs,
     reader,
+    questions,
   });
   return {
     agent,
@@ -839,4 +842,75 @@ test("a request that happens to name an environment is not taken as the answer t
 
   assert.equal(reply.text, `${WIZARD_BUSY.create}\nWhich environment: staging or prod?`);
   assert.deepEqual(gateway.writes, []);
+});
+
+// ---- The questions run as a LangGraph workflow ----
+
+test("every question and answer goes through the question flow, one conversation per tab", async () => {
+  // The real flow, wrapped so the test can see what the agent hands to it.
+  let context: WizardContext | undefined;
+  const real = createServiceFlow({
+    context: () => {
+      assert.ok(context, "the test sets the context before the first answer");
+      return context;
+    },
+  });
+  const calls: string[] = [];
+  const recording: ServiceFlow = {
+    start: (thread, first) => {
+      calls.push(`start ${thread}`);
+      // The first step carries no context; the answers are checked with the folder rule below.
+      return real.start(thread, first);
+    },
+    answer: (thread, text) => {
+      calls.push(`answer ${thread} ${text}`);
+      return real.answer(thread, text);
+    },
+  };
+  const { say } = await setup(undefined, undefined, recording);
+  context = {
+    environments: ["staging", "prod"],
+    defaults: loadConfig("config/app.config.yaml").serviceDefaults,
+    exists: () => false,
+    inspect: () => ({ folder: FOLDER, port: 3000, suggestedName: "orders-api" }),
+  };
+
+  await say("create a service", "tab-a");
+  await say("create a service", "tab-b");
+  const name = await say(FOLDER, "tab-a");
+  await say("cancel", "tab-b");
+
+  const [threadA, threadB] = [calls[0].split(" ")[1], calls[1].split(" ")[1]];
+  assert.notEqual(threadA, threadB);
+  assert.deepEqual(calls, [`start ${threadA}`, `start ${threadB}`, `answer ${threadA} ${FOLDER}`, `answer ${threadB} cancel`]);
+  assert.equal(name.text, "What should the service be called?\nDefault: orders-api");
+});
+
+test("when the flow has lost a conversation, the chat says so and answers normally again", async () => {
+  const gone: ServiceFlow = {
+    start: async (_thread, first) => first,
+    answer: async () => ({ kind: "cancelled", text: 'I lost track of these questions. Type "create a service" to start again.' }),
+  };
+  const { say } = await setup(undefined, undefined, gone);
+  await say("create a service");
+
+  const lost = await say(FOLDER);
+  const health = await say("is sample-app healthy in staging?");
+
+  assert.equal(lost.text, 'I lost track of these questions. Type "create a service" to start again.');
+  assert.match(health.text, /^sample-app \(staging\) is HEALTHY/);
+});
+
+test("a single wrong word is treated as a bad answer, not as another request", async () => {
+  const { say } = await setup();
+  await say("create a service");
+  await say(FOLDER);
+  await say("default"); // the name
+  await say("staging");
+  await say("default"); // the port; the next question is the health path
+
+  const reply = await say("health");
+
+  assert.match(reply.text, /^The path must start with \//);
+  assert.doesNotMatch(reply.text, /in the middle of creating a service/);
 });
