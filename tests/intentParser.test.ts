@@ -68,6 +68,44 @@ test("an environment that does not exist is reported by name instead of being ig
   assert.equal(parseMessage("full status of dev", known).unknownEnvironment, "dev");
 });
 
+// ---- Typing mistakes in the name of an environment ----
+
+const misspelled: [message: string, environment: string][] = [
+  ["deploy v2 to stagin", "staging"], // a letter is missing
+  ["deploy v2 to stagging", "staging"], // a letter too many
+  ["deploy v2 to stagimg", "staging"], // a wrong letter
+  ["deploy v2 to satging", "staging"], // two neighbours swapped
+  ["is prodution healthy?", "prod"], // "production" is another word for prod
+];
+for (const [message, environment] of misspelled) {
+  test(`"${message}" means ${environment}`, () => {
+    const parsed = parseMessage(message, known);
+
+    assert.equal(parsed.environment, environment);
+    assert.equal(parsed.unknownEnvironment, undefined);
+  });
+}
+
+test("a name with two typing mistakes is not guessed", () => {
+  assert.deepEqual(parseMessage("deploy v2 to stagn", known), {
+    intent: "deploy",
+    version: "v2",
+    unknownEnvironment: "stagn",
+  });
+});
+
+test("a short name must be spelled right, because one letter off is often another word", () => {
+  // "pod" is "prod" with one letter missing, but it is a word of its own.
+  assert.deepEqual(parseMessage("which pod uses the most cpu", known), { intent: "usage", topPodBy: "cpu" });
+  assert.equal(parseMessage("deploy v2 to prd", known).unknownEnvironment, "prd");
+});
+
+test("a word that is one mistake away from two environments is not guessed", () => {
+  const twoStages = { environments: ["stage-a", "stage-b"], apps: ["sample-app"] };
+
+  assert.equal(parseMessage("deploy v2 to stage-c", twoStages).environment, undefined);
+});
+
 test("a question about a deploy is read as a question, not as an order to deploy", () => {
   assert.equal(parseMessage("is the deploy healthy in staging?", known).intent, "health");
 });

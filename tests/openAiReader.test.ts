@@ -87,6 +87,27 @@ test("an environment that does not exist is reported by the name the user wrote"
   });
 });
 
+test("an environment the user wrote with a typing mistake is read as the one that was meant", () => {
+  const picked = { name: "check_health", args: { app: null, environment: "stagin" } };
+
+  assert.deepEqual(toParsedMessage(picked, "is stagin helthy?", known), { intent: "health", environment: "staging" });
+});
+
+test("an environment whose spelling the model corrected still counts as written by the user", () => {
+  const picked = { name: "full_status", args: { app: null, environment: "prod" } };
+
+  assert.deepEqual(toParsedMessage(picked, "whats the staus of prodution", known), {
+    intent: "status",
+    environment: "prod",
+  });
+});
+
+test("a short environment name is not guessed from a word that looks like it", () => {
+  const picked = { name: "show_usage", args: { app: null, environment: "prod", topPodBy: "cpu" } };
+
+  assert.deepEqual(toParsedMessage(picked, "which pod uses the most cpu", known), { intent: "usage", topPodBy: "cpu" });
+});
+
 test("an unknown environment the user did not write is dropped", () => {
   const picked = { name: "deploy", args: { app: null, version: "v2", environment: "qa" } };
 
@@ -260,6 +281,14 @@ test("every detail can be left empty, also one with a fixed list of values", asy
       assert.ok(values === undefined || values.includes(null), `${tool.name}.${detail}`);
     }
   }
+});
+
+test("the model is told that messages can have typing mistakes", async () => {
+  const { reader, requests } = setup([NODES]);
+
+  await reader.read("are the machines okay?");
+
+  assert.ok(requests[0].instructions.includes("typing mistakes"), requests[0].instructions);
 });
 
 test("an open question is passed to the model together with the answer", async () => {

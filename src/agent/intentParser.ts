@@ -1,4 +1,4 @@
-import { ENVIRONMENT_ALIASES, INTENT_RULES, NOT_AN_ENVIRONMENT } from "@/constants/agent.ts";
+import { ENVIRONMENT_ALIASES, INTENT_RULES, NOT_AN_ENVIRONMENT, SHORTEST_NAME_WITH_TYPO } from "@/constants/agent.ts";
 import type { IntentName, KnownNames, ParsedMessage } from "@/types/agent.ts";
 
 export function escapeForRegex(text: string): string {
@@ -19,7 +19,51 @@ function findIntent(lowerText: string): IntentName | null {
   return null;
 }
 
-/** The known environment named in the text, by its name or an alias such as "production". */
+/** True when `typed` is `name` with one typing mistake: a wrong, missing or extra letter, or two neighbours swapped. */
+function isOneMistakeFrom(typed: string, name: string): boolean {
+  if (typed === name || Math.abs(typed.length - name.length) > 1) {
+    return false;
+  }
+  // Skip the letters both words start with. What is left starts at the mistake.
+  let same = 0;
+  while (same < typed.length && same < name.length && typed[same] === name[same]) {
+    same++;
+  }
+  const typedRest = typed.slice(same);
+  const nameRest = name.slice(same);
+  return (
+    typedRest.slice(1) === nameRest.slice(1) || // a wrong letter: "stagimg"
+    typedRest.slice(1) === nameRest || // a letter too many: "stagging"
+    typedRest === nameRest.slice(1) || // a letter missing: "stagin"
+    // Two neighbours swapped: "satging"
+    (typedRest.length > 1 &&
+      typedRest[0] === nameRest[1] &&
+      typedRest[1] === nameRest[0] &&
+      typedRest.slice(2) === nameRest.slice(2))
+  );
+}
+
+/** The one known environment that a word of the text is a misspelling of. Undefined when there is none, or more than one. */
+function findMisspelledEnvironment(lowerText: string, environments: string[]): string | undefined {
+  const aliases = Object.entries(ENVIRONMENT_ALIASES).filter(([, environment]) => environments.includes(environment));
+  const names = [...environments.map((environment) => [environment, environment]), ...aliases];
+
+  const meant = new Set<string>();
+  for (const word of lowerText.split(/[^a-z0-9-]+/)) {
+    for (const [name, environment] of names) {
+      if (name.length >= SHORTEST_NAME_WITH_TYPO && isOneMistakeFrom(word, name)) {
+        meant.add(environment);
+      }
+    }
+  }
+  const [only] = meant;
+  return meant.size === 1 ? only : undefined;
+}
+
+/**
+ * The known environment named in the text, by its name or an alias such as "production".
+ * A name spelled right always wins; only without one is a typing mistake such as "stagin" forgiven.
+ */
 export function findEnvironment(lowerText: string, environments: string[]): string | undefined {
   for (const environment of environments) {
     if (hasWord(lowerText, environment)) {
@@ -31,7 +75,7 @@ export function findEnvironment(lowerText: string, environments: string[]): stri
       return environment;
     }
   }
-  return undefined;
+  return findMisspelledEnvironment(lowerText, environments);
 }
 
 /** The word after a trailing "to", "in", "of", "for" or "on", as in "deploy v2 to qa". */

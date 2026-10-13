@@ -38,6 +38,10 @@ export const INTENT_RULES: [IntentName, RegExp][] = [
 // Other words people use for an environment.
 export const ENVIRONMENT_ALIASES: Record<string, string> = { production: "prod", stage: "staging" };
 
+// One typing mistake is forgiven in an environment name of at least this many letters ("stagin").
+// A shorter name must be spelled right: one letter off is often another word, as "pod" is for "prod".
+export const SHORTEST_NAME_WITH_TYPO = 6;
+
 // Words that can follow "to", "in", "of" at the end of a sentence without being an environment.
 export const NOT_AN_ENVIRONMENT = new Set(["it", "them", "there", "here", "total", "use", "now", "this", "that"]);
 

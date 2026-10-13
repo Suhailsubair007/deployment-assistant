@@ -220,7 +220,7 @@ flowchart LR
 
 | Risk | Limit |
 |---|---|
-| It picks the wrong target, prod instead of staging | An environment counts only if the user wrote it in the message and the rule code reads the same one there. Otherwise it is dropped and the Agent asks. Every change shows the exact summary and needs Confirm; prod adds the warning. |
+| It picks the wrong target, prod instead of staging | An environment counts only if the user wrote it in the message and the rule code reads the same one there. One typing mistake is forgiven in a name of six letters or more ("stagin"); a shorter name such as prod must be spelled right, because one letter off is often another word ("pod"). Otherwise it is dropped and the Agent asks. Every change shows the exact summary and needs Confirm; prod adds the warning. |
 | It invents a value | A version must appear in the user's own text and is copied from there. App, environment and replicas go through the same server checks as typed input. |
 | Text it reads steers it (prompt injection) | It reads only the typed message and, when the assistant has asked a question, the unfinished request. It never sees cluster output such as log lines. Whatever it is told, it can only pick from the list, and no tool on the list runs a command. |
 | The same sentence gives different results | The rules stay the reference, and all their tests still run. For a change, Confirm shows what was understood before anything happens. |
