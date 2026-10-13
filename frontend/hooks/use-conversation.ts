@@ -8,8 +8,6 @@ import type { ChatItem } from "@/lib/conversation";
 import { messageOf } from "@/lib/http";
 import type { AgentReply } from "@/lib/types";
 
-const GREETING = 'Hello. Tell me what to do, for example "deploy sample-app version v2 to staging", or type "help".';
-
 function now(): string {
   return new Date().toISOString();
 }
@@ -21,6 +19,9 @@ function errorItem(error: unknown): ChatItem {
 /** This tab's conversation: its messages, and the two ways the user adds to it. */
 export function useConversation() {
   const [items, setItems] = useState<ChatItem[]>([]);
+  // False until the server has said what this tab's conversation holds. The page waits for
+  // that before it greets, so a reload never shows the greeting over an older conversation.
+  const [isLoaded, setIsLoaded] = useState(false);
   const [isSending, setIsSending] = useState(false);
   // How many requests are waiting for an answer. "Working on it" shows while it is above zero.
   const [waiting, setWaiting] = useState(0);
@@ -30,18 +31,18 @@ export function useConversation() {
     let cancelled = false;
     getSession()
       .then(({ messages, pendingActionId }) => {
-        if (cancelled) {
-          return;
+        if (!cancelled) {
+          setItems(fromStoredMessages(messages, pendingActionId));
         }
-        setItems(
-          messages.length === 0
-            ? [{ role: "agent", text: GREETING, at: now() }]
-            : fromStoredMessages(messages, pendingActionId),
-        );
       })
       .catch((error: unknown) => {
         if (!cancelled) {
           setItems([errorItem(error)]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoaded(true);
         }
       });
     return () => {
@@ -80,5 +81,5 @@ export function useConversation() {
     await ask(() => decideAction(actionId, choice));
   }
 
-  return { items, isSending, isWorking: waiting > 0, send, decide };
+  return { items, isLoaded, isSending, isWorking: waiting > 0, send, decide };
 }

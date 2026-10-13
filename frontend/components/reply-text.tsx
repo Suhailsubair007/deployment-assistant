@@ -1,8 +1,9 @@
+import type { CSSProperties } from "react";
 import { cn } from "cn";
 
 import { StatusPill } from "@/components/status-pill";
-import { parseReply } from "@/lib/reply-lines";
-import type { TextPart } from "@/lib/reply-lines";
+import { groupFacts, parseReply } from "@/lib/reply-lines";
+import type { FactsLine, TextPart } from "@/lib/reply-lines";
 
 const TONE_OF_WORD = { HEALTHY: "healthy", DEGRADED: "degraded", DOWN: "down" } as const;
 
@@ -19,36 +20,64 @@ function Parts({ parts }: { parts: TextPart[] }) {
 }
 
 /**
- * Draws an agent reply line by line. React writes every piece as text, never as HTML,
+ * Rows of facts as a table: one fact per cell, in the fixed-width font so numbers line up.
+ * A table that is wider than the message scrolls sideways instead of breaking its rows.
+ */
+function FactsTable({ rows, style }: { rows: FactsLine[]; style: CSSProperties }) {
+  const first = rows[0];
+  if (first === undefined) {
+    return null;
+  }
+  return (
+    <div
+      className="my-1.5 max-w-full animate-line-in overflow-x-auto rounded-lg border bg-card"
+      // The table stays indented as far as the server indented its rows.
+      style={{ ...style, marginLeft: `${first.indent}ch` }}
+    >
+      <div
+        className="grid w-max min-w-full font-mono text-[12.5px] leading-[1.6]"
+        style={{ gridTemplateColumns: `repeat(${first.facts.length}, auto)` }}
+      >
+        {rows.map((row, rowIndex) =>
+          row.facts.map((fact, factIndex) => (
+            <div
+              key={`${rowIndex}/${factIndex}`}
+              className={cn("px-2.5 py-1.5 whitespace-nowrap", rowIndex > 0 && "border-t", factIndex > 0 && "border-l")}
+            >
+              <Parts parts={fact} />
+            </div>
+          )),
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Draws an agent reply piece by piece. React writes every piece as text, never as HTML,
  * so a log line or pod name can never be run by the browser.
  */
 export function ReplyText({ text }: { text: string }) {
-  return parseReply(text).map((line, index) => {
-    // One line of a reply. The server's own spaces are kept, and an empty line keeps its height.
-    const lineClass = cn("min-h-[1lh] whitespace-pre-wrap", line.isLead && "font-semibold");
+  return groupFacts(parseReply(text)).map((block, index) => {
+    // Each piece appears a moment after the one above it, so a long answer unfolds from the top.
+    const style = { animationDelay: `${Math.min(index, 8) * 45}ms` };
 
-    if (line.kind === "facts") {
-      // Facts sit side by side with a thin divider after each one. A row that is too long
-      // wraps between facts, not inside one, and stays indented as far as the line was.
-      return (
-        <div key={index} className={cn(lineClass, "flex flex-wrap")} style={{ paddingLeft: `${line.indent}ch` }}>
-          {line.facts.map((fact, factIndex) => (
-            <span key={factIndex} className="not-last:mr-2.5 not-last:border-r not-last:border-input not-last:pr-2.5">
-              <Parts parts={fact} />
-            </span>
-          ))}
-        </div>
-      );
+    if (block.kind === "table") {
+      return <FactsTable key={index} rows={block.rows} style={style} />;
     }
 
+    const { line } = block;
     return (
       <div
         key={index}
+        style={style}
         className={cn(
-          lineClass,
-          line.kind === "note" && "text-muted-foreground",
+          // An empty line keeps its height.
+          "min-h-[1lh] animate-line-in",
+          line.isLead && "mb-0.5 font-semibold",
+          line.kind === "note" && "mt-1.5 rounded-md bg-muted px-2.5 py-1.5 text-[13px] text-muted-foreground",
           line.kind === "bullet" &&
-            "relative pl-4 before:absolute before:top-[calc(0.5lh-2px)] before:left-1 before:size-[5px] before:rounded-full before:bg-muted-foreground",
+            "relative pl-4 before:absolute before:top-[calc(0.5lh-2.5px)] before:left-1 before:size-[5px] before:rounded-full before:bg-primary",
         )}
       >
         <Parts parts={line.parts} />

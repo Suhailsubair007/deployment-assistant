@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { parseReply, splitStatusWords } from "../lib/reply-lines.ts";
+import { groupFacts, parseReply, splitStatusWords } from "../lib/reply-lines.ts";
 
 const text = (value: string) => ({ kind: "text", text: value });
 
@@ -98,4 +98,41 @@ test("an empty line is kept as a line with nothing in it", () => {
     { kind: "plain", isLead: false, parts: [] },
     { kind: "plain", isLead: false, parts: [text("Roll back with: roll back staging")] },
   ]);
+});
+
+// ---- Tables of facts ----
+
+const kindsOf = (reply: string) => groupFacts(parseReply(reply)).map((block) => block.kind);
+
+test("lines of text stay one block each", () => {
+  assert.deepEqual(kindsOf("Deployed.\n- one\nNote: two"), ["line", "line", "line"]);
+});
+
+test("one row of facts is a table of one row", () => {
+  const blocks = groupFacts(parseReply("Pods 3/3 ready | Rollout: complete"));
+
+  assert.equal(blocks.length, 1);
+  assert.equal(blocks[0]?.kind === "table" && blocks[0].rows.length, 1);
+});
+
+test("rows of facts that follow each other become one table", () => {
+  const blocks = groupFacts(parseReply("Last 2 deployments:\n#2 | staging | succeeded\n#1 | staging | failed"));
+
+  assert.deepEqual(
+    blocks.map((block) => block.kind),
+    ["line", "table"],
+  );
+  assert.equal(blocks[1]?.kind === "table" && blocks[1].rows.length, 2);
+});
+
+test("a row with a different number of facts starts a new table", () => {
+  assert.deepEqual(kindsOf("a | b | c\nd | e"), ["table", "table"]);
+});
+
+test("a row with a different indent starts a new table", () => {
+  assert.deepEqual(kindsOf("a | b\n  c | d"), ["table", "table"]);
+});
+
+test("a line of text between rows of facts keeps them in separate tables", () => {
+  assert.deepEqual(kindsOf("a | b\nPer pod:\nc | d"), ["table", "line", "table"]);
 });

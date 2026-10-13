@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Welcome } from "@/components/welcome";
 import { useConversation } from "@/hooks/use-conversation";
 import { buildSuggestions } from "@/lib/suggestions";
 import type { EnvironmentSummary } from "@/lib/types";
@@ -22,7 +23,7 @@ interface ChatPanelProps {
 
 /** The conversation and, below it, the message box. */
 export function ChatPanel({ environments, onOperationFinished }: ChatPanelProps) {
-  const { items, isSending, isWorking, send, decide } = useConversation();
+  const { items, isLoaded, isSending, isWorking, send, decide } = useConversation();
   const [draft, setDraft] = useState("");
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -35,7 +36,8 @@ export function ChatPanel({ environments, onOperationFinished }: ChatPanelProps)
     }
   }, []);
 
-  // Every new message, and "Working on it", moves the view to the bottom.
+  // Every new message, and Buddy starting to work, moves the view to the bottom.
+  // The list has "scroll-smooth", so the view glides there instead of jumping.
   useEffect(scrollToNewest, [items, isWorking, scrollToNewest]);
 
   // The cursor is in the message box when the page opens and again after each answer.
@@ -63,7 +65,12 @@ export function ChatPanel({ environments, onOperationFinished }: ChatPanelProps)
   return (
     <Card role="region" aria-label="Conversation" className="min-h-0 gap-0 py-0">
       {/* New messages are announced to screen readers as they arrive. */}
-      <div ref={listRef} aria-live="polite" className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-3.5 min-[861px]:p-5">
+      <div
+        ref={listRef}
+        aria-live="polite"
+        className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto scroll-smooth p-3.5 min-[861px]:p-5"
+      >
+        {isLoaded && items.length === 0 && <Welcome />}
         {/* The list only grows, so the position of a message is a stable key. */}
         {items.map((item, index) =>
           item.role === "user" ? (
@@ -83,7 +90,7 @@ export function ChatPanel({ environments, onOperationFinished }: ChatPanelProps)
               <Button
                 key={example}
                 variant="outline"
-                className="h-[26px] rounded-full bg-sunken px-2.5 text-[12.5px] font-normal text-muted-foreground hover:border-primary hover:bg-accent hover:text-foreground"
+                className="h-[26px] rounded-full bg-sunken px-2.5 text-[12.5px] font-normal text-muted-foreground duration-200 hover:-translate-y-px hover:border-primary hover:bg-accent hover:text-foreground"
                 // A click only fills the message box: the user can still change it before pressing Enter.
                 onClick={() => {
                   setDraft(example);
@@ -106,11 +113,11 @@ export function ChatPanel({ environments, onOperationFinished }: ChatPanelProps)
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
             maxLength={500}
-            placeholder='Ask or tell me, for example "is staging healthy?"'
+            placeholder='Ask Buddy, for example "is staging healthy?"'
             autoComplete="off"
-            className="h-[42px] flex-1 rounded-[10px] bg-sunken px-3"
+            className="h-11 flex-1 rounded-xl bg-sunken px-3.5"
           />
-          <Button type="submit" disabled={isSending} className="h-[42px] rounded-[10px] px-[18px]">
+          <Button type="submit" disabled={isSending} className="h-11 rounded-xl px-[18px]">
             Send
             <ArrowRight />
           </Button>

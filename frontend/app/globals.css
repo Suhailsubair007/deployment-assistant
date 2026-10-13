@@ -162,18 +162,34 @@
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
 
-  /* The three dots of "Working on it", and the pod that is starting right now. */
-  --animate-dot: dot 1.2s ease-in-out infinite;
+  /* Movement. Only opacity and position change, never a size, so the browser does not
+     lay the page out again while something moves. That is what keeps it smooth.
+     The curve starts fast and settles gently, without a bounce. */
+  --animate-message-in: message-in 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-line-in: line-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+  /* A tick or a ready pod that has just appeared. */
+  --animate-pop: pop 0.36s cubic-bezier(0.22, 1, 0.36, 1);
+  /* The pod that is starting right now. */
   --animate-pod-starting: pod-starting 1.2s ease-in-out infinite;
 
-  @keyframes dot {
-    0%,
-    60%,
-    100% {
-      opacity: 0.3;
+  @keyframes message-in {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
     }
-    30% {
-      opacity: 1;
+  }
+
+  @keyframes line-in {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+  }
+
+  @keyframes pop {
+    from {
+      opacity: 0.3;
+      transform: scale(0.5);
     }
   }
 
@@ -181,6 +197,131 @@
     50% {
       opacity: 0.35;
     }
+  }
+}
+
+/* The words Buddy shows while it works: a band of light moves across them. */
+@utility text-shimmer {
+  background-image: linear-gradient(
+    90deg,
+    var(--muted-foreground) 42%,
+    var(--foreground) 50%,
+    var(--muted-foreground) 58%
+  );
+  background-size: 300% 100%;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer 1.8s linear infinite;
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+
+/* ---- Buddy ----
+   The drawing is in components/buddy.tsx. data-mood on it picks the colour of the
+   antenna light and how Buddy moves. */
+.buddy {
+  --buddy-light: var(--neutral-solid);
+}
+
+.buddy-light {
+  fill: var(--buddy-light);
+  transition: fill 0.3s ease;
+}
+
+/* A part of an SVG turns and scales around its own middle only when told to. */
+.buddy-light,
+.buddy-eyes {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.buddy[data-live] .buddy-eyes {
+  animation: buddy-blink 4.2s ease-in-out infinite;
+}
+
+/* Working: the eyes look left and right, the light pulses and the head bobs. */
+.buddy[data-mood="working"] {
+  --buddy-light: var(--primary);
+  animation: buddy-bob 1.4s ease-in-out infinite;
+}
+
+.buddy[data-mood="working"] .buddy-eyes {
+  animation: buddy-look 1.4s ease-in-out infinite;
+}
+
+.buddy[data-mood="working"] .buddy-light {
+  animation: buddy-pulse 0.7s ease-in-out infinite alternate;
+}
+
+/* Good news: a green light and one small hop. */
+.buddy[data-mood="happy"] {
+  --buddy-light: var(--healthy-solid);
+  animation: buddy-hop 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* A problem: a red light and one short shake. */
+.buddy[data-mood="worried"] {
+  --buddy-light: var(--down-solid);
+  animation: buddy-shake 0.4s ease-in-out;
+}
+
+@keyframes buddy-blink {
+  0%,
+  92%,
+  100% {
+    transform: scaleY(1);
+  }
+  96% {
+    transform: scaleY(0.1);
+  }
+}
+
+@keyframes buddy-look {
+  0%,
+  100% {
+    transform: translateX(-2px);
+  }
+  50% {
+    transform: translateX(2px);
+  }
+}
+
+@keyframes buddy-bob {
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
+@keyframes buddy-pulse {
+  from {
+    opacity: 0.45;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1.12);
+  }
+}
+
+@keyframes buddy-hop {
+  40% {
+    transform: translateY(-5px);
+  }
+}
+
+@keyframes buddy-shake {
+  25% {
+    transform: translateX(-2px);
+  }
+  75% {
+    transform: translateX(2px);
   }
 }
 
@@ -196,9 +337,11 @@
   }
 }
 
-/* For people who asked their system for less movement: everything stands still. */
+/* For people who asked their system for less movement: everything stands still,
+   and the conversation jumps to a new message instead of gliding there. */
 @media (prefers-reduced-motion: reduce) {
   * {
     animation: none !important;
+    scroll-behavior: auto !important;
   }
 }

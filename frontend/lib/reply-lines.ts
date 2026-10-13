@@ -1,7 +1,7 @@
 // Agent replies are plain text. This file cuts a reply into lines and parts, so the page
 // can give three patterns their own look without the server sending any HTML:
 // "- " starts a list item, "Note: " a side note, and " | " separates facts.
-// The words HEALTHY, DEGRADED and DOWN become coloured labels.
+// The words HEALTHY, DEGRADED and DOWN become coloured labels, and rows of facts become tables.
 
 export type HealthWord = "HEALTHY" | "DEGRADED" | "DOWN";
 
@@ -48,4 +48,32 @@ export function parseReply(text: string): ReplyLine[] {
     }
     return { kind: line.startsWith("Note: ") ? "note" : "plain", isLead, parts: splitStatusWords(line) };
   });
+}
+
+export type FactsLine = Extract<ReplyLine, { kind: "facts" }>;
+export type TextLine = Exclude<ReplyLine, FactsLine>;
+
+/** A piece of a reply as the page draws it: one line of text, or a table of facts. */
+export type ReplyBlock = { kind: "line"; line: TextLine } | { kind: "table"; rows: FactsLine[] };
+
+/**
+ * Puts rows of facts that follow each other into one table, so their columns line up.
+ * Rows belong together when they have the same number of facts and the same indent.
+ */
+export function groupFacts(lines: ReplyLine[]): ReplyBlock[] {
+  const blocks: ReplyBlock[] = [];
+  for (const line of lines) {
+    if (line.kind !== "facts") {
+      blocks.push({ kind: "line", line });
+      continue;
+    }
+    const previous = blocks.at(-1);
+    const first = previous?.kind === "table" ? previous.rows[0] : undefined;
+    if (previous?.kind === "table" && first?.facts.length === line.facts.length && first.indent === line.indent) {
+      previous.rows.push(line);
+    } else {
+      blocks.push({ kind: "table", rows: [line] });
+    }
+  }
+  return blocks;
 }

@@ -1,19 +1,14 @@
-"use client";
-
-import { useEffect } from "react";
 import { cn } from "cn";
-import { LoaderCircle } from "lucide-react";
+import { Check, CircleAlert, CircleCheck, LoaderCircle, X } from "lucide-react";
 
-import { StatusPill } from "@/components/status-pill";
-import { useOperation } from "@/hooks/use-operation";
 import { parsePodProgress } from "@/lib/pod-progress";
-
-type RolloutState = "running" | "succeeded" | "failed" | "unknown";
+import { buildRolloutSteps } from "@/lib/rollout-steps";
+import type { RolloutState, StepState } from "@/lib/rollout-steps";
 
 /** A filled square is a ready pod. The first one that is not ready is the pod starting right now. */
 function podClass(index: number, ready: number, state: RolloutState): string {
   if (index < ready) {
-    return "border-healthy-solid bg-healthy-solid";
+    return "animate-pop border-healthy-solid bg-healthy-solid";
   }
   if (state === "running" && index === ready) {
     return "animate-pod-starting border-primary bg-primary";
@@ -24,55 +19,114 @@ function podClass(index: number, ready: number, state: RolloutState): string {
   return "border-input bg-muted";
 }
 
-interface RolloutProps {
-  operationId: string;
-  /** Called once, when the change has succeeded or failed. */
-  onFinished: () => void;
+/** The round mark in front of a step: a tick, a cross, a spinner, or an empty ring. */
+function StepMark({ state }: { state: StepState }) {
+  if (state === "done") {
+    return (
+      <span className="grid size-5 animate-pop place-items-center rounded-full bg-healthy-solid text-white">
+        <Check className="size-3" strokeWidth={3.5} />
+      </span>
+    );
+  }
+  if (state === "failed") {
+    return (
+      <span className="grid size-5 animate-pop place-items-center rounded-full bg-down-solid text-on-down">
+        <X className="size-3" strokeWidth={3.5} />
+      </span>
+    );
+  }
+  if (state === "active") {
+    return <LoaderCircle className="size-5 animate-spin text-primary" />;
+  }
+  return <span className="size-5 rounded-full border-2 border-input" />;
 }
 
-/** The progress of a change that was confirmed: one square per pod, the steps so far, then the result. */
-export function Rollout({ operationId, onFinished }: RolloutProps) {
-  const { operation, error } = useOperation(operationId);
-  const state: RolloutState = error !== null ? "unknown" : (operation?.state ?? "running");
+interface RolloutProps {
+  state: RolloutState;
+  /** The newest progress step the server reported, such as "2/3 pods ready". */
+  progress: string;
+  /** The final message, or the reason the page can no longer follow the change. */
+  message: string;
+}
+
+/** The progress of a confirmed change: three steps that are ticked off, one square per pod, then the result. */
+export function Rollout({ state, progress, message }: RolloutProps) {
+  const pods = parsePodProgress(progress);
+  const steps = buildRolloutSteps(state, pods);
   const isFinished = state === "succeeded" || state === "failed";
 
-  // An effect runs after the result is on screen, so the conversation can scroll down to it.
-  useEffect(() => {
-    if (isFinished) {
-      onFinished();
-    }
-  }, [isFinished, onFinished]);
-
-  const steps = operation?.steps ?? [];
-  const pods = parsePodProgress(steps.at(-1) ?? "");
-  const trail = steps.join("  ->  ");
-  const waiting = state === "running" ? "Waiting for the first pod..." : "";
-  const stepsText = error ?? (trail !== "" ? trail : waiting);
-
   return (
-    <div className="mt-2.5 grid gap-2 border-t border-dashed border-input pt-2.5 font-sans">
-      {pods !== null && (
-        // The line of text below says the same in words.
-        <div aria-hidden="true" className="flex flex-wrap gap-1">
-          {Array.from({ length: pods.total }, (_, index) => (
-            <span key={index} className={cn("size-4 rounded-[4px] border", podClass(index, pods.ready, state))} />
-          ))}
+    <div className="mt-3 grid gap-3 border-t border-dashed border-input pt-3">
+      <ol>
+        {steps.map((step, index) => {
+          const isLast = index === steps.length - 1;
+          return (
+            <li key={step.id} className="grid grid-cols-[20px_minmax(0,1fr)] gap-x-2.5">
+              <div className="flex flex-col items-center">
+                <StepMark state={step.state} />
+                {/* The line down to the next step turns green once this step is done. */}
+                {!isLast && (
+                  <span
+                    className={cn(
+                      "my-0.5 w-0.5 flex-1 rounded-full transition-colors duration-500",
+                      step.state === "done" ? "bg-healthy-solid" : "bg-border",
+                    )}
+                  />
+                )}
+              </div>
+              <div className={cn("grid gap-1", !isLast && "pb-3.5")}>
+                <div
+                  className={cn(
+                    "leading-5 transition-colors duration-300",
+                    step.state === "active" && "font-semibold",
+                    step.state === "pending" && "text-muted-foreground",
+                  )}
+                >
+                  {step.title}
+                </div>
+                {step.detail !== "" && (
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] text-muted-foreground">
+                    {step.id === "pods" && pods !== null && (
+                      // The words after the squares say the same.
+                      <span aria-hidden="true" className="flex flex-wrap gap-1">
+                        {Array.from({ length: pods.total }, (_, podIndex) => (
+                          <span
+                            key={podIndex}
+                            className={cn(
+                              "size-3.5 rounded-[4px] border transition-colors duration-300",
+                              podClass(podIndex, pods.ready, state),
+                            )}
+                          />
+                        ))}
+                      </span>
+                    )}
+                    {step.detail}
+                  </div>
+                )}
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+
+      {isFinished && (
+        <div
+          data-tone={state === "succeeded" ? "healthy" : "down"}
+          className="flex animate-line-in gap-2 rounded-lg bg-tone-soft px-3 py-2"
+        >
+          {state === "succeeded" ? (
+            <CircleCheck className="mt-[3px] size-4 flex-none text-tone" />
+          ) : (
+            <CircleAlert className="mt-[3px] size-4 flex-none text-tone" />
+          )}
+          {/* A failure message says by itself what failed, so only a success gets a word in front. */}
+          <p>
+            {state === "succeeded" && <span className="font-semibold text-tone">Done. </span>}
+            {message}
+          </p>
         </div>
       )}
-      {stepsText !== "" && (
-        <div className="flex items-center gap-2 text-[12.5px] text-muted-foreground">
-          {state === "running" && <LoaderCircle className="size-3.5 shrink-0 animate-spin text-primary" />}
-          {stepsText}
-        </div>
-      )}
-      {isFinished && operation !== null && (
-        <div className="whitespace-pre-wrap">
-          <StatusPill tone={operation.state === "succeeded" ? "healthy" : "down"}>
-            {operation.state === "succeeded" ? "DONE" : "FAILED"}
-          </StatusPill>{" "}
-          {operation.message}
-        </div>
-      )}
+      {state === "unknown" && <p className="text-[12.5px] text-muted-foreground">{message}</p>}
     </div>
   );
 }

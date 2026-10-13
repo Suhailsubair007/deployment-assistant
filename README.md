@@ -127,7 +127,7 @@ npm run build        # builds the page; this also type-checks it
 
 The tests replace the cluster with an in-memory fake ([tests/helpers/fakeGateway.ts](tests/helpers/fakeGateway.ts)). They cover intent parsing, unit conversion, health evaluation, deploy, roll back, scaling, the one-change-at-a-time lock and every failure message.
 
-The page's logic that needs no browser is tested too ([frontend/tests/](frontend/tests/)): the API call and its error sentences, how a reply is cut into lines, the Confirm and Cancel notes, and the pod counts. The React components themselves have no automated tests; they were checked by hand in the browser.
+The page's logic that needs no browser is tested too ([frontend/tests/](frontend/tests/)): the API call and its error sentences, how a reply is cut into lines and tables, the Confirm and Cancel notes, the pod counts, the steps of a rollout, and the mood of Buddy (the face in the chat). The React components themselves have no automated tests; they were checked by hand in the browser.
 
 ## Settings
 
