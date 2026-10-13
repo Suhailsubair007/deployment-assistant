@@ -1,5 +1,3 @@
-import type { AppsV1Api, CoreV1Api, Metrics } from "@kubernetes/client-node";
-
 /** CPU and memory as Kubernetes writes them, for example "100m" and "128Mi". Missing when not set. */
 export interface ResourceQuantities {
   cpu?: string;
@@ -132,13 +130,4 @@ export interface CallContext {
 export interface KubernetesStatus {
   message?: string;
   details?: { name?: string; kind?: string };
-}
-
-export interface KubeClients {
-  /** Deployments. */
-  apps: AppsV1Api;
-  /** Pods, Services, Events, logs, Nodes. */
-  core: CoreV1Api;
-  /** CPU and memory usage from metrics-server (metrics.k8s.io). */
-  metrics: Metrics;
 }

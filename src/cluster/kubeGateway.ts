@@ -16,13 +16,25 @@ import type {
   DeploymentInfo,
   EventInfo,
   HealthProbe,
-  KubeClients,
   Manifest,
   NodeInfo,
   NodeUsage,
   PodInfo,
   PodUsage,
 } from "@/types/cluster.ts";
+
+/**
+ * The three clients of the Kubernetes library that the gateway calls.
+ * This type stays here and not in src/types, so that only this folder knows the library.
+ */
+interface KubeClients {
+  /** Deployments. */
+  apps: AppsV1Api;
+  /** Pods, Services, Events, logs, Nodes. */
+  core: CoreV1Api;
+  /** CPU and memory usage from metrics-server (metrics.k8s.io). */
+  metrics: Metrics;
+}
 
 export class KubeGateway implements ClusterGateway {
   private readonly context: string;
