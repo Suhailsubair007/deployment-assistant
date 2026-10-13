@@ -5,10 +5,10 @@ export const CONFIRMATION_LIFETIME_MS = 10 * 60 * 1000;
 export const CONFIRMATION_INVALID = "That confirmation is no longer valid. Please ask again.";
 export const CONFIRMATION_EXPIRED = "That confirmation has expired. Please ask again.";
 export const CANCELLED = "Cancelled. Nothing was changed.";
-// It says what the assistant is for and blames nobody: the message may be off-topic,
+// It lists what the assistant can do and blames nobody: the message may be off-topic,
 // or a real request in words the reader does not know.
 export const NOT_UNDERSTOOD =
-  "I'm not sure how to help with that. I can deploy, roll back and scale your apps, and tell you how they are doing.";
+  "I'm not sure how to help with that. I can deploy, roll back and scale your apps, and show their health, CPU and memory, a full status, the nodes and past deployments.";
 export const RULES_DESCRIPTION =
   "Messages are read by built-in rules. The LLM is not configured (OPENAI_API_KEY is not set).";
 

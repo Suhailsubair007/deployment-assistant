@@ -310,14 +310,14 @@ test("an unreachable cluster is reported as a normal reply", async () => {
   assert.equal((await say("is staging healthy?")).text, 'I can\'t reach the cluster (context "fake-cluster").');
 });
 
-test("a message the agent does not understand gets one sentence that says what it can do", async () => {
+test("a message the agent does not understand gets one sentence that lists what it can do", async () => {
   const { say } = await setup();
 
   const reply = await say("tell me a joke");
 
   assert.equal(
     reply.text,
-    "I'm not sure how to help with that. I can deploy, roll back and scale your apps, and tell you how they are doing.",
+    "I'm not sure how to help with that. I can deploy, roll back and scale your apps, and show their health, CPU and memory, a full status, the nodes and past deployments.",
   );
 });
 
