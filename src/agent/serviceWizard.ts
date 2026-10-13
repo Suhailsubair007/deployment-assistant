@@ -54,6 +54,7 @@ import {
   tooLittleMemory,
   tooMuchCpu,
   nameTaken,
+  nameTakenEverywhere,
   nameTakenThere,
   nowLine,
 } from "@/constants/wizard.ts";
@@ -86,8 +87,11 @@ function defaultAnswer(wizard: Wizard, context: WizardContext): string | null {
   const { draft } = wizard;
   const { defaults } = context;
   switch (wizard.field) {
-    case "name":
-      return draft.project?.suggestedName ?? null;
+    case "name": {
+      const suggested = draft.project?.suggestedName ?? null;
+      // A name that is taken wherever the service could go is not worth suggesting.
+      return suggested !== null && takenEverywhere(suggested, context) ? null : suggested;
+    }
     case "port":
       return String(dockerfilePort(draft) ?? defaults.port);
     case "healthPath":
@@ -193,7 +197,16 @@ function readName(text: string, draft: ServiceDraft, context: WizardContext): st
   if (draft.environment !== undefined && context.exists(draft.environment, text)) {
     throw new InvalidRequestError(nameTakenThere(text, draft.environment));
   }
+  // Said now, because the environment question that comes next could never be answered.
+  if (takenEverywhere(text, context)) {
+    throw new InvalidRequestError(nameTakenEverywhere(text));
+  }
   return text;
+}
+
+/** True when a service of this name exists in every environment, as an app from the config file does. */
+function takenEverywhere(name: string, context: WizardContext): boolean {
+  return context.environments.every((environment) => context.exists(environment, name));
 }
 
 function readEnvironment(text: string, draft: ServiceDraft, context: WizardContext): string {

@@ -961,3 +961,29 @@ test("a name with two dashes in a row is refused: the image repository would not
   assert.equal(step.wizard.field, "name");
   assert.equal(asked(answerAt("name", "orders-api-2")).rejected, undefined);
 });
+
+// ---- A name that is taken in every environment ----
+
+/** Like makeContext, but "sample-app" exists in every environment, as an app from the config file does. */
+function contextWithAppEverywhere(project: ProjectInfo = PROJECT): WizardContext {
+  return { ...makeContext(project), exists: (_environment, name) => name === "sample-app" };
+}
+
+test("a name that is taken in every environment is refused at the name question, not later", () => {
+  const context = contextWithAppEverywhere();
+
+  const step = asked(answerAt("name", "sample-app", context));
+
+  assert.equal(step.rejected, true);
+  assert.equal(step.wizard.field, "name");
+  assert.match(step.text, /^There is already a service called sample-app in every environment\. Give another name\.\n/);
+});
+
+test("a folder whose name is taken in every environment gets no suggested name", () => {
+  const context = contextWithAppEverywhere({ ...PROJECT, suggestedName: "sample-app" });
+
+  const step = asked(answerAt("folder", "~/code/orders-api", context));
+
+  assert.equal(step.wizard.field, "name");
+  assert.equal(step.question, "What should the service be called?");
+});

@@ -156,6 +156,11 @@ export function nameTakenThere(name: string, environment: string): string {
   return `There is already a service called ${name} in ${environment}. Give another name.`;
 }
 
+/** The name is taken wherever the service could go, for example by an app from the config file. */
+export function nameTakenEverywhere(name: string): string {
+  return `There is already a service called ${name} in every environment. Give another name.`;
+}
+
 export const UNKNOWN_ENVIRONMENT = "I don't know that environment.";
 
 export const BAD_PORT = `The port must be a whole number from ${LOWEST_PORT} to ${HIGHEST_PORT}.`;
