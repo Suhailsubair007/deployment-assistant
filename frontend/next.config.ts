@@ -13,7 +13,13 @@ const turbopack: NextConfig["turbopack"] = {
 
 // "next build" writes the page as plain files into out/, and the Express server serves
 // that folder. No Next.js server runs when the app is used.
-const buildConfig: NextConfig = { output: "export", turbopack };
+const buildConfig: NextConfig = {
+  output: "export",
+  turbopack,
+  // A build starts from nothing instead of reusing parts of the last one. With that cache a
+  // style added to globals.css was once missing from the built page. A build takes a few seconds longer.
+  experimental: { turbopackFileSystemCacheForBuild: false },
+};
 
 // "next dev" is only for working on the page, with hot reload. A static export cannot
 // forward requests, so this forwarding exists in development only.
