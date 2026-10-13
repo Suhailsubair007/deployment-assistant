@@ -1,23 +1,6 @@
-// The agent: has each chat message read, works out what is wanted, asks when something
-// is missing, and answers. It never touches the cluster itself; it calls the services.
-//
-// Reading a message is done by a MessageReader: the built-in rules, or OpenAI when an
-// API key is set. Whichever reads it, everything after that is the same code.
-//
-// Safety rule: a message can only ever create a *pending* change. The change is
-// carried out by confirm(), which the web layer calls when the Confirm button is clicked.
-
 import { randomUUID } from "node:crypto";
 
-import type { AppConfig } from "../config.ts";
-import { AppError, InvalidRequestError } from "../errors.ts";
-import type { ChangePlan, DeploymentService } from "../services/deploymentService.ts";
-import { formatDeploymentId } from "../services/historyStore.ts";
-import type { HistoryFilter, HistoryStore } from "../services/historyStore.ts";
-import type { StatusService } from "../services/statusService.ts";
-import type { KnownNames, ParsedMessage } from "./intentParser.ts";
-import { createRuleReader } from "./messageReader.ts";
-import type { MessageReader } from "./messageReader.ts";
+import { createRuleReader } from "@/agent/messageReader.ts";
 import {
   formatFullStatus,
   formatHealth,
@@ -28,38 +11,26 @@ import {
   formatProtectedWarning,
   formatTopPod,
   formatUsage,
-} from "./replyFormatter.ts";
-import type { Session, SessionStore } from "./sessionStore.ts";
-
-export interface AgentReply {
-  text: string;
-  /** Set when the reply asks for confirmation: the browser shows Confirm and Cancel. */
-  action?: { id: string; warning: string | null };
-  /** Set when a change has started: the browser follows its progress by this ID. */
-  operationId?: string;
-}
-
-export interface AgentDeps {
-  config: AppConfig;
-  deployments: DeploymentService;
-  statuses: StatusService;
-  history: HistoryStore;
-  sessions: SessionStore;
-  /** How messages are read. Left out, the built-in rules read them. */
-  reader?: MessageReader;
-  /** The current time in milliseconds. Tests replace this. */
-  now?: () => number;
-}
-
-const CONFIRMATION_LIFETIME_MS = 10 * 60 * 1000;
-const DEFAULT_HISTORY_ROWS = 5;
-const MAX_HISTORY_ROWS = 50;
-
-const STARTED: Record<ChangePlan["action"], string> = {
-  deploy: "Rolling update started",
-  rollback: "Rollback started",
-  scale: "Scaling started",
-};
+} from "@/agent/replyFormatter.ts";
+import type { SessionStore } from "@/agent/sessionStore.ts";
+import {
+  CANCELLED,
+  CONFIRMATION_EXPIRED,
+  CONFIRMATION_INVALID,
+  CONFIRMATION_LIFETIME_MS,
+  DEFAULT_HISTORY_ROWS,
+  MAX_HISTORY_ROWS,
+  NOT_UNDERSTOOD,
+  STARTED_MESSAGES,
+} from "@/constants/agent.ts";
+import { AppError, InvalidRequestError } from "@/errors.ts";
+import type { DeploymentService } from "@/services/deploymentService.ts";
+import { formatDeploymentId } from "@/services/historyStore.ts";
+import type { HistoryStore } from "@/services/historyStore.ts";
+import type { StatusService } from "@/services/statusService.ts";
+import type { AgentDeps, AgentReply, KnownNames, MessageReader, ParsedMessage, Session } from "@/types/agent.ts";
+import type { AppConfig } from "@/types/config.ts";
+import type { ChangePlan, HistoryFilter } from "@/types/deployment.ts";
 
 export class Agent {
   private readonly config: AppConfig;
@@ -92,8 +63,6 @@ export class Agent {
     const reading = await this.reader.read(text, session.awaiting);
     const reply = await this.asReply(() => this.respond(session, reading.parsed, text, user));
     if (reading.fallbackNote !== undefined) {
-      // The rules read this message because OpenAI could not. Say so, since the rules
-      // understand fewer phrasings and the user should know why.
       reply.text += `\nNote: ${reading.fallbackNote}`;
     }
     this.record(session, reply);
@@ -109,16 +78,16 @@ export class Agent {
       const pending = session.pending;
       // The action must be the one waiting in *this* session. Another tab's ID does not match.
       if (pending === undefined || pending.id !== actionId) {
-        throw new InvalidRequestError("That confirmation is no longer valid. Please ask again.");
+        throw new InvalidRequestError(CONFIRMATION_INVALID);
       }
       // A confirmation works once, whatever happens next.
       session.pending = undefined;
       if (this.now() - pending.createdAtMs > CONFIRMATION_LIFETIME_MS) {
-        throw new InvalidRequestError("That confirmation has expired. Please ask again.");
+        throw new InvalidRequestError(CONFIRMATION_EXPIRED);
       }
       const { operation } = await this.deployments.execute(pending.plan, user);
       return {
-        text: `${STARTED[pending.plan.action]} (${formatDeploymentId(operation.deploymentId)}).`,
+        text: `${STARTED_MESSAGES[pending.plan.action]} (${formatDeploymentId(operation.deploymentId)}).`,
         operationId: operation.id,
       };
     });
@@ -134,9 +103,9 @@ export class Agent {
     let reply: AgentReply;
     if (session.pending?.id === actionId) {
       session.pending = undefined;
-      reply = { text: "Cancelled. Nothing was changed." };
+      reply = { text: CANCELLED };
     } else {
-      reply = { text: "That confirmation is no longer valid. Please ask again." };
+      reply = { text: CONFIRMATION_INVALID };
     }
     this.record(session, reply);
     return reply;
@@ -147,7 +116,7 @@ export class Agent {
   private async respond(session: Session, parsed: ParsedMessage, text: string, user: string): Promise<AgentReply> {
     const request = this.combine(session, parsed, text);
     if (request === null || request.intent === null) {
-      return { text: `I didn't understand that.\n${formatHelp(this.known, this.reader.description)}` };
+      return { text: `${NOT_UNDERSTOOD}\n${formatHelp(this.known, this.reader.description)}` };
     }
 
     if (request.unknownEnvironment !== undefined && request.environment === undefined) {
@@ -186,8 +155,6 @@ export class Agent {
         return { text: formatHistory(this.history.list(filter), filter) };
       }
 
-      // Changes. The environment must be named in this request: the agent never
-      // borrows it from earlier messages, because a wrong guess would change the wrong place.
       case "deploy": {
         const { version, environment } = request;
         const pieces = { ...request, app };
@@ -263,13 +230,7 @@ export class Agent {
     return request.intent === "status" ? formatFullStatus(status) : formatHealth(status);
   }
 
-  /**
-   * Joins a message with what came before it.
-   *  - A message that names an action stands on its own.
-   *  - Otherwise it may answer a question the agent asked ("staging", "v2", "5"),
-   *  - or follow up on the last question ("what about prod?").
-   * Returns null when it is none of these.
-   */
+  /** Joins a message with what came before it. */
   private combine(session: Session, parsed: ParsedMessage, text: string): ParsedMessage | null {
     if (parsed.intent !== null) {
       return parsed;
@@ -284,8 +245,6 @@ export class Agent {
       const oneWord = /^[\w.-]+$/.test(answer);
 
       if (awaiting.intent === "deploy" && merged.version === undefined && oneWord && details.environment === undefined) {
-        // A bare word answering "which version?". If the environment is also still
-        // open, only take it as a version when it looks like one (it has a digit).
         if (merged.environment !== undefined || /\d/.test(answer)) {
           merged.version = answer;
           return merged;

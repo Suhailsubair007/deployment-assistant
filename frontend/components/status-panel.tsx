@@ -93,8 +93,6 @@ export function StatusPanel({ status }: { status: EnvironmentStatusState }) {
       )}
 
       {(environments === null || hasCards) && (
-        // A failed refresh keeps the last cards on screen, greyed, so old data is not read as new.
-        // On a small screen the cards sit side by side and scroll sideways.
         <div
           className={cn(
             "grid min-h-0 auto-cols-[minmax(240px,1fr)] grid-flow-col gap-2.5 overflow-auto p-3 min-[861px]:auto-cols-auto min-[861px]:grid-flow-row",

@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { InvalidRequestError } from "../src/errors.ts";
-import { buildManifests, SERVICE_PORT } from "../src/services/manifestBuilder.ts";
-import type { DeployParams } from "../src/services/manifestBuilder.ts";
+import { InvalidRequestError } from "@/errors.ts";
+import { SERVICE_PORT } from "@/constants/deployment.ts";
+import { buildManifests } from "@/services/manifestBuilder.ts";
+import type { DeployParams } from "@/types/deployment.ts";
 
 const params: DeployParams = {
   name: "sample-app",

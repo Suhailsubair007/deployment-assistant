@@ -1,28 +1,15 @@
-// Kubernetes writes CPU and memory as "quantities": a number with an optional suffix,
-// for example "250m" (CPU) or "512Ki" (memory). These helpers turn them into plain
-// numbers for calculations and back into text a person can read.
-
-const KI = 1024;
-const MI = 1024 * KI;
-const GI = 1024 * MI;
-const TI = 1024 * GI;
-
-// A number such as "250", "0.5" or "129e6", followed by an optional suffix.
-const QUANTITY = /^(\d+(?:\.\d+)?(?:[eE]\d+)?)([a-zA-Z]*)$/;
+import { GIBIBYTE, KIBIBYTE, MEMORY_SUFFIX_BYTES, MEBIBYTE, QUANTITY_PATTERN } from "@/constants/monitoring.ts";
 
 /** Splits "512Ki" into 512 and "Ki". Throws when the text is not a quantity. */
 function splitQuantity(quantity: string): { amount: number; suffix: string } {
-  const match = QUANTITY.exec(quantity.trim());
+  const match = QUANTITY_PATTERN.exec(quantity.trim());
   if (match === null) {
     throw new Error(`Unrecognised quantity: ${quantity}`);
   }
   return { amount: Number(match[1]), suffix: match[2] ?? "" };
 }
 
-/**
- * CPU quantity to millicores (1000 millicores = one full CPU core).
- * "250m" -> 250, "1" -> 1000, "100000000n" -> 100.
- */
+/** CPU quantity to millicores (1000 millicores = one full CPU core). */
 export function parseCpuToMillicores(quantity: string): number {
   const { amount, suffix } = splitQuantity(quantity);
   switch (suffix) {
@@ -38,21 +25,6 @@ export function parseCpuToMillicores(quantity: string): number {
       throw new Error(`Unrecognised quantity: ${quantity}`);
   }
 }
-
-// How many bytes one unit of each memory suffix is worth.
-// "Ki", "Mi", "Gi" count in steps of 1024; "k", "M", "G" count in steps of 1000.
-const MEMORY_SUFFIX_BYTES: Record<string, number> = {
-  "": 1,
-  m: 1 / 1000,
-  k: 1000,
-  M: 1000 ** 2,
-  G: 1000 ** 3,
-  T: 1000 ** 4,
-  Ki: KI,
-  Mi: MI,
-  Gi: GI,
-  Ti: TI,
-};
 
 /** Memory quantity to bytes. "512Ki" -> 524288, "1Gi" -> 1073741824, "128974848" -> 128974848. */
 export function parseMemoryToBytes(quantity: string): number {
@@ -84,24 +56,20 @@ export function formatCpu(millicores: number): string {
 
 /** Bytes as text: 128974848 -> "123Mi", 1610612736 -> "1.5Gi". */
 export function formatMemory(bytes: number): string {
-  const wholeMi = Math.round(bytes / MI);
+  const wholeMi = Math.round(bytes / MEBIBYTE);
   if (wholeMi >= 1024) {
-    return `${oneDecimal(bytes / GI)}Gi`;
+    return `${oneDecimal(bytes / GIBIBYTE)}Gi`;
   }
-  if (bytes >= MI) {
+  if (bytes >= MEBIBYTE) {
     return `${wholeMi}Mi`;
   }
-  if (bytes >= KI) {
-    return `${Math.round(bytes / KI)}Ki`;
+  if (bytes >= KIBIBYTE) {
+    return `${Math.round(bytes / KIBIBYTE)}Ki`;
   }
   return `${Math.round(bytes)}B`;
 }
 
-/**
- * `used` as a whole-number percentage of `total`.
- * Returns null when there is no total (for example a container without a limit),
- * so callers never show a made-up number.
- */
+/** `used` as a whole-number percentage of `total`. */
 export function percent(used: number, total: number): number | null {
   if (total <= 0) {
     return null;

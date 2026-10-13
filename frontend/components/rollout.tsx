@@ -3,7 +3,7 @@ import { Check, CircleAlert, CircleCheck, LoaderCircle, X } from "lucide-react";
 
 import { parsePodProgress } from "@/lib/pod-progress";
 import { buildRolloutSteps } from "@/lib/rollout-steps";
-import type { RolloutState, StepState } from "@/lib/rollout-steps";
+import type { RolloutState, StepState } from "@/lib/types";
 
 /** A filled square is a ready pod. The first one that is not ready is the pod starting right now. */
 function podClass(index: number, ready: number, state: RolloutState): string {

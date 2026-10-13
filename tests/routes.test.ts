@@ -3,16 +3,16 @@ import type { Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { after, test } from "node:test";
 
-import { Agent } from "../src/agent/agent.ts";
-import { SessionStore } from "../src/agent/sessionStore.ts";
-import { createApp } from "../src/api/routes.ts";
-import { loadConfig } from "../src/config.ts";
-import { DeploymentService } from "../src/services/deploymentService.ts";
-import { FailureExplainer } from "../src/services/failureExplainer.ts";
-import { HistoryStore } from "../src/services/historyStore.ts";
-import { MetricsService } from "../src/services/metricsService.ts";
-import { OperationStore } from "../src/services/operationStore.ts";
-import { StatusService } from "../src/services/statusService.ts";
+import { Agent } from "@/agent/agent.ts";
+import { SessionStore } from "@/agent/sessionStore.ts";
+import { createApp } from "@/api/routes.ts";
+import { loadConfig } from "@/config.ts";
+import { DeploymentService } from "@/services/deploymentService.ts";
+import { FailureExplainer } from "@/services/failureExplainer.ts";
+import { HistoryStore } from "@/services/historyStore.ts";
+import { MetricsService } from "@/services/metricsService.ts";
+import { OperationStore } from "@/services/operationStore.ts";
+import { StatusService } from "@/services/statusService.ts";
 import { FakeGateway } from "./helpers/fakeGateway.ts";
 
 const servers: Server[] = [];

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { moodOfReply } from "../lib/buddy-mood.ts";
+import { moodOfReply } from "@/lib/buddy-mood.ts";
 
 test("an ordinary reply leaves Buddy resting", () => {
   assert.equal(moodOfReply("Cancelled. Nothing was changed.", false), "idle");

@@ -177,6 +177,8 @@ src/api/         web routes and error messages
 src/agent/       understands messages (rules, or OpenAI through LangGraph), keeps one conversation per tab, holds the Confirm step
 src/services/    deploy, roll back, scale, health, CPU and memory, history
 src/cluster/     the only code that uses the Kubernetes library
+src/types/       every type, one file per area (agent, cluster, deployment, ...)
+src/constants/   every fixed value, one file per area
 config/          thresholds, timeouts, environments
 k8s/             manifest templates and local cluster files
 sample-app/      the small app that gets deployed

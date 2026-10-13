@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { parsePodProgress } from "../lib/pod-progress.ts";
+import { parsePodProgress } from "@/lib/pod-progress.ts";
 
 test("reads the ready and wanted pod counts from a progress step", () => {
   assert.deepEqual(parsePodProgress("2/3 pods ready"), { ready: 2, total: 3 });

@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { toAppError } from "../src/cluster/kubeErrors.ts";
-import { AppError, ClusterUnreachableError, ForbiddenError, NotFoundError } from "../src/errors.ts";
+import { toAppError } from "@/cluster/kubeErrors.ts";
+import { AppError, ClusterUnreachableError, ForbiddenError, NotFoundError } from "@/errors.ts";
 
 /** An error shaped like the one the Kubernetes library throws for a non-2xx answer. */
 function apiError(code: number, body: unknown): Error {

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { OperationStore } from "../src/services/operationStore.ts";
+import { OperationStore } from "@/services/operationStore.ts";
 
 const input = { deploymentId: 7, environment: "staging", app: "sample-app" };
 

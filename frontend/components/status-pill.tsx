@@ -1,11 +1,9 @@
 import type { ReactNode } from "react";
 
 import { Badge } from "@/components/ui/badge";
-import type { EnvironmentStatus } from "@/lib/types";
+import type { EnvironmentStatus, Tone } from "@/lib/types";
 
 /** One of the four status looks. globals.css gives each tone its three colours. */
-export type Tone = "healthy" | "degraded" | "down" | "neutral";
-
 const TONE_OF_STATUS: Record<EnvironmentStatus, Tone> = {
   HEALTHY: "healthy",
   DEGRADED: "degraded",

@@ -1,0 +1,51 @@
+import type { IntentName } from "@/types/agent.ts";
+import type { ChangePlan } from "@/types/deployment.ts";
+
+export const CONFIRMATION_LIFETIME_MS = 10 * 60 * 1000;
+export const CONFIRMATION_INVALID = "That confirmation is no longer valid. Please ask again.";
+export const CONFIRMATION_EXPIRED = "That confirmation has expired. Please ask again.";
+export const CANCELLED = "Cancelled. Nothing was changed.";
+export const NOT_UNDERSTOOD = "I didn't understand that.";
+export const RULES_DESCRIPTION =
+  "Messages are read by built-in rules. The LLM is not configured (OPENAI_API_KEY is not set).";
+
+export const DEFAULT_HISTORY_ROWS = 5;
+
+export const MAX_HISTORY_ROWS = 50;
+
+export const STARTED_MESSAGES: Record<ChangePlan["action"], string> = {
+  deploy: "Rolling update started",
+  rollback: "Rollback started",
+  scale: "Scaling started",
+};
+
+export const INTENT_RULES: [IntentName, RegExp][] = [
+  ["rollback", /\broll\s?-?back\b|\brevert\b|\bundo\b/],
+  ["scale", /\bscale\b|\breplicas?\b/],
+  ["history", /\bdeployments\b|\bhistory\b/],
+  ["nodes", /\bnodes?\b/],
+  ["status", /\bstatus\b|\boverview\b/],
+  ["usage", /\bcpu\b|\bmemory\b|\bram\b|\bresources?\b|\busage\b/],
+  ["health", /\bhealthy?\b/],
+  ["deploy", /\bdeploy\b|\brelease\b|\bship\b/],
+  ["health", /\b(ok|okay|up|alive|working|running)\b/],
+  ["help", /\bhelp\b|what can you do|\bcommands\b/],
+];
+
+// Other words people use for an environment.
+export const ENVIRONMENT_ALIASES: Record<string, string> = { production: "prod", stage: "staging" };
+
+// Words that can follow "to", "in", "of" at the end of a sentence without being an environment.
+export const NOT_AN_ENVIRONMENT = new Set(["it", "them", "there", "here", "total", "use", "now", "this", "that"]);
+
+// What Kubernetes' short termination reasons mean.
+export const TERMINATION_MEANINGS: Record<string, string> = {
+  OOMKilled: "killed for using more memory than its limit",
+  Error: "the app exited with an error",
+  Completed: "the app exited by itself",
+  ContainerCannotRun: "the container could not be started",
+};
+
+export const MAX_SESSIONS = 500;
+
+export const MAX_MESSAGES = 200;

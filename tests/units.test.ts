@@ -1,13 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import {
-  formatCpu,
-  formatMemory,
-  parseCpuToMillicores,
-  parseMemoryToBytes,
-  percent,
-} from "../src/services/units.ts";
+import { formatCpu, formatMemory, parseCpuToMillicores, parseMemoryToBytes, percent } from "@/services/units.ts";
 
 const cpuCases: [input: string, millicores: number][] = [
   ["250m", 250],

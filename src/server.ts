@@ -1,38 +1,28 @@
-// Starts the Deployment Assistant. This file only wires the pieces together:
-//
-//   browser -> Web API -> Agent -> Services -> Cluster gateway -> Kubernetes
-//
-// Settings come from environment variables (see .env.example).
-
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 
-import { Agent } from "./agent/agent.ts";
-import { createMessageReader } from "./agent/messageReader.ts";
-import { SessionStore } from "./agent/sessionStore.ts";
-import { createApp } from "./api/routes.ts";
-import { KubeGateway } from "./cluster/kubeGateway.ts";
-import { ConfigError, loadConfig } from "./config.ts";
-import { DeploymentService } from "./services/deploymentService.ts";
-import { FailureExplainer } from "./services/failureExplainer.ts";
-import { HistoryStore } from "./services/historyStore.ts";
-import { MetricsService } from "./services/metricsService.ts";
-import { OperationStore } from "./services/operationStore.ts";
-import { StatusService } from "./services/statusService.ts";
+import { Agent } from "@/agent/agent.ts";
+import { createMessageReader } from "@/agent/messageReader.ts";
+import { SessionStore } from "@/agent/sessionStore.ts";
+import { createApp } from "@/api/routes.ts";
+import { KubeGateway } from "@/cluster/kubeGateway.ts";
+import { ConfigError, loadConfig } from "@/config.ts";
+import { DEFAULT_CONFIG_PATH, DEFAULT_DB_PATH, DEFAULT_PORT, HOST, PAGE_FOLDER } from "@/constants/server.ts";
+import { DeploymentService } from "@/services/deploymentService.ts";
+import { FailureExplainer } from "@/services/failureExplainer.ts";
+import { HistoryStore } from "@/services/historyStore.ts";
+import { MetricsService } from "@/services/metricsService.ts";
+import { OperationStore } from "@/services/operationStore.ts";
+import { StatusService } from "@/services/statusService.ts";
 
-const HOST = "127.0.0.1"; // reachable from this machine only
-// The page is a Next.js app. "npm run build" writes it as plain files into this folder.
-const PAGE_FOLDER = join(import.meta.dirname, "../frontend/out");
-const port = Number(process.env.PORT || 3000);
+const port = Number(process.env.PORT || DEFAULT_PORT);
 
 function start(): void {
-  const config = loadConfig(process.env.CONFIG_PATH || "config/app.config.yaml");
+  const config = loadConfig(process.env.CONFIG_PATH || DEFAULT_CONFIG_PATH);
 
-  // The gateway never fails here. A wrong kubeconfig is reported in the chat instead,
-  // so the app starts even when no cluster is running.
   const gateway = new KubeGateway(process.env.KUBE_CONTEXT || undefined);
 
-  const history = new HistoryStore(process.env.DB_PATH || "data/assistant.db");
+  const history = new HistoryStore(process.env.DB_PATH || DEFAULT_DB_PATH);
   const interrupted = history.recoverInterrupted();
 
   const operations = new OperationStore();
@@ -47,8 +37,6 @@ function start(): void {
     explainer,
     imageRegistry: process.env.IMAGE_REGISTRY || undefined,
   });
-  // With OPENAI_API_KEY set, OpenAI reads the chat messages. Without it, the built-in
-  // rules do, and the app works exactly as it does with no LLM at all.
   const reader = createMessageReader({
     known: { environments: Object.keys(config.environments), apps: Object.keys(config.apps) },
     apiKey: process.env.OPENAI_API_KEY,

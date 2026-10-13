@@ -1,10 +1,4 @@
-/**
- * Errors the user is meant to read.
- *
- * The message of an AppError is always a complete, plain sentence that is safe to
- * show in the chat. Any other error is a bug: the user gets a generic message and
- * the details go to the server log.
- */
+/** Errors the user is meant to read. */
 export class AppError extends Error {
   constructor(message: string) {
     super(message);

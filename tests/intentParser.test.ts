@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { parseMessage } from "../src/agent/intentParser.ts";
-import type { ParsedMessage } from "../src/agent/intentParser.ts";
+import { parseMessage } from "@/agent/intentParser.ts";
+import type { ParsedMessage } from "@/types/agent.ts";
 
 const known = { environments: ["staging", "prod"], apps: ["sample-app"] };
 

@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import type { DeploymentInfo, PodInfo } from "../src/cluster/gateway.ts";
-import type { Thresholds } from "../src/config.ts";
-import { evaluateHealth, findProblemPods } from "../src/services/healthEvaluator.ts";
-import type { HealthInput } from "../src/services/healthEvaluator.ts";
-import type { AppUsage, PodUsageReport, ResourceUse } from "../src/services/metricsService.ts";
+import type { DeploymentInfo, PodInfo } from "@/types/cluster.ts";
+import type { Thresholds } from "@/types/config.ts";
+import { evaluateHealth, findProblemPods } from "@/services/healthEvaluator.ts";
+import type { HealthInput } from "@/types/monitoring.ts";
+import type { AppUsage, PodUsageReport, ResourceUse } from "@/types/monitoring.ts";
 
 const thresholds: Thresholds = {
   memoryPercentOfLimit: 85,

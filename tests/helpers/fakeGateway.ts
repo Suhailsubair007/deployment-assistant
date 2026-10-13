@@ -11,8 +11,8 @@ import type {
   NodeUsage,
   PodInfo,
   PodUsage,
-} from "../../src/cluster/gateway.ts";
-import { NotFoundError } from "../../src/errors.ts";
+} from "@/types/cluster.ts";
+import { NotFoundError } from "@/errors.ts";
 
 /** What the new pods do after a change. "frozen" leaves the pods exactly as the test arranged them. */
 export type RolloutBehaviour = "succeed" | "stall" | "imageNotFound" | "crashLoop" | "frozen";

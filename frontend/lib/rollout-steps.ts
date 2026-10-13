@@ -1,28 +1,5 @@
-// A confirmed change goes through three steps. This file works out how far it is,
-// so the page can draw the steps as a list that is ticked off one by one.
-
-import type { PodProgress } from "./pod-progress.ts";
-
-/** "unknown" means the page can no longer ask the server about this change. */
-export type RolloutState = "running" | "succeeded" | "failed" | "unknown";
-
-export type StepState = "done" | "active" | "failed" | "pending";
-
-export interface RolloutStep {
-  id: "sent" | "pods" | "finished";
-  title: string;
-  /** A short line under the title, or "" for none. */
-  detail: string;
-  state: StepState;
-}
-
-// Everything that can go wrong after Confirm goes wrong while the pods start.
-const PODS_STEP_STATE: Record<RolloutState, StepState> = {
-  running: "active",
-  succeeded: "done",
-  failed: "failed",
-  unknown: "pending",
-};
+import { PODS_STEP_STATE } from "@/lib/constants.ts";
+import type { PodProgress, RolloutState, RolloutStep } from "@/lib/types.ts";
 
 /** The three steps of a change and the state of each one. */
 export function buildRolloutSteps(state: RolloutState, pods: PodProgress | null): RolloutStep[] {

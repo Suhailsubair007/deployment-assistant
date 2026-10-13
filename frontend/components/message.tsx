@@ -10,9 +10,7 @@ import { ReplyText } from "@/components/reply-text";
 import { Rollout } from "@/components/rollout";
 import { useOperation } from "@/hooks/use-operation";
 import { moodOfReply } from "@/lib/buddy-mood";
-import type { BuddyMood } from "@/lib/buddy-mood";
-import type { ChatItem } from "@/lib/conversation";
-import type { RolloutState } from "@/lib/rollout-steps";
+import type { BuddyMood, ChatItem, RolloutState } from "@/lib/types";
 
 /** "18:42" */
 function formatClock(at: string): string {
@@ -28,8 +26,6 @@ function Meta({ author, at }: { author: string; at?: string }) {
   );
 }
 
-// A click on Confirm or Cancel is stored as one of these messages. It is drawn as a
-// small note, because the user did not type it.
 const CLICK_NOTES: Record<string, string> = {
   "(clicked Confirm)": "You clicked Confirm",
   "(clicked Cancel)": "You clicked Cancel",
@@ -141,8 +137,6 @@ export function AgentMessage({ item, onDecide, onOperationFinished }: AgentMessa
   );
 }
 
-// What Buddy says while an answer is on its way: the first phrase at once, each later
-// one when the wait has lasted that long.
 const FIRST_PHRASE = "On it";
 const LATER_PHRASES = [
   { afterMs: 900, text: "Talking to the cluster" },

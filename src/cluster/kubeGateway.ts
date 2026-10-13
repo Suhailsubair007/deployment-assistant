@@ -1,32 +1,28 @@
-// The real ClusterGateway. This is the only file that loads the Kubernetes client library.
-// It works the same against kind and EKS: only the kubeconfig context differs.
-
 import { AppsV1Api, CoreV1Api, KubeConfig, Metrics } from "@kubernetes/client-node";
 import type { V1Deployment, V1Service } from "@kubernetes/client-node";
 
-import { ClusterUnreachableError, MetricsUnavailableError } from "../errors.ts";
+import { httpStatusOf, toAppError } from "@/cluster/kubeErrors.ts";
+import {
+  toDeploymentInfo,
+  toEventInfo,
+  toNodeInfo,
+  toNodeUsage,
+  toPodInfo,
+  toPodUsage,
+} from "@/cluster/kubeMappers.ts";
+import { ClusterUnreachableError, MetricsUnavailableError } from "@/errors.ts";
 import type {
   ClusterGateway,
   DeploymentInfo,
   EventInfo,
   HealthProbe,
+  KubeClients,
   Manifest,
   NodeInfo,
   NodeUsage,
   PodInfo,
   PodUsage,
-} from "./gateway.ts";
-import { httpStatusOf, toAppError } from "./kubeErrors.ts";
-import { toDeploymentInfo, toEventInfo, toNodeInfo, toNodeUsage, toPodInfo, toPodUsage } from "./kubeMappers.ts";
-
-interface KubeClients {
-  /** Deployments. */
-  apps: AppsV1Api;
-  /** Pods, Services, Events, logs, Nodes. */
-  core: CoreV1Api;
-  /** CPU and memory usage from metrics-server (metrics.k8s.io). */
-  metrics: Metrics;
-}
+} from "@/types/cluster.ts";
 
 export class KubeGateway implements ClusterGateway {
   private readonly context: string;
@@ -34,11 +30,6 @@ export class KubeGateway implements ClusterGateway {
   /** Why the kubeconfig could not be used. Empty when everything is fine. */
   private readonly setupProblem: string;
 
-  /**
-   * @param requestedContext kubeconfig context to use; empty means the current context.
-   * The constructor never throws: a bad kubeconfig is reported on the first call instead,
-   * so the web app can still start and tell the user what is wrong.
-   */
   constructor(requestedContext?: string) {
     const kubeConfig = new KubeConfig();
     kubeConfig.loadFromDefault();
@@ -70,10 +61,7 @@ export class KubeGateway implements ClusterGateway {
     }
   }
 
-  /**
-   * Runs one or more library calls and turns any failure into a readable error.
-   * `action` finishes the sentence "The assistant is not allowed to ...".
-   */
+  /** Runs one or more library calls and turns any failure into a readable error. */
   private async call<T>(
     action: string,
     namespace: string | undefined,
@@ -136,8 +124,6 @@ export class KubeGateway implements ClusterGateway {
       );
       return;
     }
-    // A replace must carry the version we just read. If someone else changed the Deployment
-    // in between, Kubernetes refuses with a conflict instead of silently overwriting it.
     const resourceVersion = existing.metadata?.resourceVersion;
     await this.call("update the deployment", namespace, ({ apps }) =>
       apps.replaceNamespacedDeployment({
@@ -169,8 +155,6 @@ export class KubeGateway implements ClusterGateway {
       );
       return;
     }
-    // Kubernetes gave the Service an internal IP address when it was created.
-    // That address cannot change, so a replace has to send the same one back.
     await this.call("update the service", namespace, ({ core }) =>
       core.replaceNamespacedService({
         name,
@@ -251,8 +235,6 @@ export class KubeGateway implements ClusterGateway {
         const cause = status === 403 ? error : new TypeError("fetch failed");
         throw toAppError(cause, { action: "read CPU and memory usage", context: this.context });
       }
-      // The library reports a missing metrics API and one that is still starting in the
-      // same way, so the message covers both.
       throw new MetricsUnavailableError(
         "metrics-server is not installed or not ready in this cluster, so CPU and memory usage is not available.",
       );
@@ -263,8 +245,6 @@ export class KubeGateway implements ClusterGateway {
     const startedAt = performance.now();
     const elapsedMs = (): number => Math.round(performance.now() - startedAt);
 
-    // The API server forwards this request to the Service, so it works from a laptop
-    // for both kind and EKS without opening any port.
     const request = this.call("call /health through the service", namespace, async ({ core }) => {
       try {
         await core.connectGetNamespacedServiceProxyWithPath({ name: `${service}:${port}`, namespace, path: "health" });

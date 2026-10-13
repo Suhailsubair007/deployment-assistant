@@ -1,64 +1,7 @@
-// CPU and memory: what each pod uses right now, compared with what it asked for
-// (requests) and what it may use at most (limits). Also the same for nodes.
-//
-// Usage comes from metrics-server. When it is missing, the result says so; a number
-// is never invented.
-
-import type { ClusterGateway, ContainerResources, PodInfo } from "../cluster/gateway.ts";
-import { MetricsUnavailableError } from "../errors.ts";
-import { parseCpuToMillicores, parseMemoryToBytes, percent } from "./units.ts";
-
-/** One resource of one pod (or of all pods together). CPU is in millicores, memory in bytes. */
-export interface ResourceUse {
-  used: number;
-  /** Null when a container has no request set. */
-  request: number | null;
-  /** Null when a container has no limit set. */
-  limit: number | null;
-  percentOfRequest: number | null;
-  percentOfLimit: number | null;
-}
-
-export interface PodUsageReport {
-  podName: string;
-  restarts: number;
-  /** How the pod's container last ended, for example "OOMKilled". */
-  lastTerminationReason?: string;
-  cpu: ResourceUse;
-  memory: ResourceUse;
-}
-
-export interface AppUsage {
-  available: true;
-  /** Pods that have usage numbers. */
-  pods: PodUsageReport[];
-  /** Pods metrics-server has no numbers for yet (it needs a minute or two after a pod starts). */
-  podsWithoutMetrics: string[];
-  /** Sums over `pods`. */
-  total: { cpu: ResourceUse; memory: ResourceUse };
-}
-
-export interface MetricsUnavailable {
-  available: false;
-  /** Why there are no numbers, in words for the user. */
-  reason: string;
-}
-
-export interface NodeReport {
-  name: string;
-  ready: boolean;
-  memoryPressure: boolean;
-  diskPressure: boolean;
-  /** Usage as a share of what the node can hand out; null when metrics are unavailable. */
-  cpuPercent: number | null;
-  memoryPercent: number | null;
-}
-
-export interface NodesReport {
-  nodes: NodeReport[];
-  /** Set when the percentages are missing because metrics-server is unavailable. */
-  metricsUnavailableReason: string | null;
-}
+import { MetricsUnavailableError } from "@/errors.ts";
+import { parseCpuToMillicores, parseMemoryToBytes, percent } from "@/services/units.ts";
+import type { ClusterGateway, ContainerResources, PodInfo } from "@/types/cluster.ts";
+import type { AppUsage, MetricsUnavailable, NodesReport, PodUsageReport, ResourceUse } from "@/types/monitoring.ts";
 
 function resourceUse(used: number, request: number | null, limit: number | null): ResourceUse {
   return {
@@ -104,9 +47,6 @@ export class MetricsService {
     this.gateway = gateway;
   }
 
-  /**
-   * @param pods the app's pods, when the caller has already listed them
-   */
   async getAppUsage(namespace: string, app: string, pods?: PodInfo[]): Promise<AppUsage | MetricsUnavailable> {
     const appPods = pods ?? (await this.gateway.listPods(namespace, app));
 

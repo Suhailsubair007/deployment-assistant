@@ -1,24 +1,24 @@
 // Developer tool: talks to a real cluster through the gateway, without the web app.
 // Useful for checking that the Kubernetes calls work before trusting the chat.
 //
-//   node scripts/smoke.ts read [environment]
-//   node scripts/smoke.ts deploy <version> [environment]
-//   node scripts/smoke.ts scale <replicas> [environment]
-//   node scripts/smoke.ts rollback [environment]
-//   node scripts/smoke.ts status [environment]
-//   node scripts/smoke.ts wait-status <HEALTHY|DEGRADED|DOWN> [environment]   (checks every 5 s, up to 3 minutes)
+//   npm run smoke -- read [environment]
+//   npm run smoke -- deploy <version> [environment]
+//   npm run smoke -- scale <replicas> [environment]
+//   npm run smoke -- rollback [environment]
+//   npm run smoke -- status [environment]
+//   npm run smoke -- wait-status <HEALTHY|DEGRADED|DOWN> [environment]   (checks every 5 s, up to 3 minutes)
 
-import { KubeGateway } from "../src/cluster/kubeGateway.ts";
-import { loadConfig } from "../src/config.ts";
-import { AppError, MetricsUnavailableError } from "../src/errors.ts";
-import { DeploymentService } from "../src/services/deploymentService.ts";
-import type { ChangePlan } from "../src/services/deploymentService.ts";
-import { FailureExplainer } from "../src/services/failureExplainer.ts";
-import { HistoryStore } from "../src/services/historyStore.ts";
-import { MetricsService } from "../src/services/metricsService.ts";
-import { OperationStore } from "../src/services/operationStore.ts";
-import { StatusService } from "../src/services/statusService.ts";
-import { formatCpu, formatMemory } from "../src/services/units.ts";
+import { KubeGateway } from "@/cluster/kubeGateway.ts";
+import { loadConfig } from "@/config.ts";
+import { AppError, MetricsUnavailableError } from "@/errors.ts";
+import { DeploymentService } from "@/services/deploymentService.ts";
+import type { ChangePlan } from "@/types/deployment.ts";
+import { FailureExplainer } from "@/services/failureExplainer.ts";
+import { HistoryStore } from "@/services/historyStore.ts";
+import { MetricsService } from "@/services/metricsService.ts";
+import { OperationStore } from "@/services/operationStore.ts";
+import { StatusService } from "@/services/statusService.ts";
+import { formatCpu, formatMemory } from "@/services/units.ts";
 
 const APP = "sample-app";
 

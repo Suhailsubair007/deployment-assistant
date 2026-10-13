@@ -1,6 +1,3 @@
-// Turns the Kubernetes library's large objects into the small plain types in gateway.ts.
-// Only type information is imported here; the library itself is loaded by kubeGateway.ts.
-
 import type {
   CoreV1Event,
   NodeMetric,
@@ -20,11 +17,9 @@ import type {
   PodInfo,
   PodUsage,
   ResourceQuantities,
-} from "./gateway.ts";
+} from "@/types/cluster.ts";
 
 export function toDeploymentInfo(deployment: V1Deployment): DeploymentInfo {
-  // "generation" goes up with every change to the spec. "observedGeneration" is the
-  // last change the Deployment controller has acted on.
   const generation = deployment.metadata?.generation ?? 0;
   const observedGeneration = deployment.status?.observedGeneration ?? 0;
 

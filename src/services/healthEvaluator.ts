@@ -1,44 +1,7 @@
-// Decides whether an app is HEALTHY, DEGRADED or DOWN.
-//
-// Four signals are combined and the worst one wins:
-//   1. rollout    pods available compared with pods wanted
-//   2. pods       crash loops, image errors, stuck Pending, many restarts, recent OOMKills
-//   3. /health    an HTTP call through the Service, with its response time
-//   4. resources  CPU and memory use compared with the limits
-//
-// Everything here is a pure function: same input, same answer, no cluster needed.
-// Every number it compares against comes from the thresholds in the config file.
-
-import type { DeploymentInfo, HealthProbe, PodInfo } from "../cluster/gateway.ts";
-import type { Thresholds } from "../config.ts";
-import { NORMAL_STARTUP } from "./failureExplainer.ts";
-import type { AppUsage, MetricsUnavailable, PodUsageReport } from "./metricsService.ts";
-
-export type HealthStatus = "HEALTHY" | "DEGRADED" | "DOWN";
-
-/** A pod that is not working properly, with the reason in plain words. */
-export interface PodProblem {
-  podName: string;
-  explanation: string;
-}
-
-export interface HealthInput {
-  app: string;
-  deployment: DeploymentInfo;
-  probe: HealthProbe;
-  usage: AppUsage | MetricsUnavailable;
-  podProblems: PodProblem[];
-}
-
-export interface HealthReport {
-  status: HealthStatus;
-  /** Why the status is not HEALTHY. Empty when it is. */
-  reasons: string[];
-  /** What could not be checked, for example because metrics-server is missing. */
-  notes: string[];
-}
-
-const SEVERITY: Record<HealthStatus, number> = { HEALTHY: 0, DEGRADED: 1, DOWN: 2 };
+import { NORMAL_STARTUP, STATUS_SEVERITY } from "@/constants/monitoring.ts";
+import type { PodInfo } from "@/types/cluster.ts";
+import type { Thresholds } from "@/types/config.ts";
+import type { HealthInput, HealthReport, HealthStatus, PodUsageReport } from "@/types/monitoring.ts";
 
 /** The pods that count as having a problem (signal 2). */
 export function findProblemPods(pods: PodInfo[], thresholds: Thresholds, now: Date): PodInfo[] {
@@ -89,7 +52,7 @@ export function evaluateHealth(input: HealthInput, thresholds: Thresholds): Heal
   /** Records a reason and raises the status if this signal is worse than what we have so far. */
   const worsen = (to: HealthStatus, reason: string): void => {
     reasons.push(reason);
-    if (SEVERITY[to] > SEVERITY[status]) {
+    if (STATUS_SEVERITY[to] > STATUS_SEVERITY[status]) {
       status = to;
     }
   };

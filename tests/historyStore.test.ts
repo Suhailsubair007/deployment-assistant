@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { DeployInProgressError } from "../src/errors.ts";
-import { formatDeploymentId, HistoryStore } from "../src/services/historyStore.ts";
-import type { NewDeployment } from "../src/services/historyStore.ts";
+import { DeployInProgressError } from "@/errors.ts";
+import { formatDeploymentId, HistoryStore } from "@/services/historyStore.ts";
+import type { NewDeployment } from "@/types/deployment.ts";
 
 function deployTo(environment: string, overrides: Partial<NewDeployment> = {}): NewDeployment {
   return {

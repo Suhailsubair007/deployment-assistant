@@ -3,7 +3,7 @@ import { test } from "node:test";
 
 import type { V1Deployment, V1Node, V1Pod } from "@kubernetes/client-node";
 
-import { toDeploymentInfo, toNodeInfo, toPodInfo } from "../src/cluster/kubeMappers.ts";
+import { toDeploymentInfo, toNodeInfo, toPodInfo } from "@/cluster/kubeMappers.ts";
 
 const container = {
   name: "sample-app",

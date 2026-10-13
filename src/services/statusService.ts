@@ -1,56 +1,23 @@
-// Collects the four health signals for an app from the cluster and has them judged.
-// Also builds the short per-environment summary shown in the status panel.
-
-import type { ClusterGateway, DeploymentInfo, HealthProbe, PodInfo } from "../cluster/gateway.ts";
-import { thresholdsFor } from "../config.ts";
-import type { AppConfig } from "../config.ts";
-import { AppError } from "../errors.ts";
-import type { FailureExplainer } from "./failureExplainer.ts";
-import { evaluateHealth, findProblemPods } from "./healthEvaluator.ts";
-import type { HealthReport, HealthStatus, PodProblem } from "./healthEvaluator.ts";
-import type { HistoryStore } from "./historyStore.ts";
-import { SERVICE_PORT } from "./manifestBuilder.ts";
-import type { AppUsage, MetricsService, MetricsUnavailable, NodesReport } from "./metricsService.ts";
-import { findDeployment, resolveTarget } from "./target.ts";
-
-/** Everything known about one app in one environment, with the verdict. */
-export interface AppStatus {
-  environment: string;
-  app: string;
-  health: HealthReport;
-  deployment: DeploymentInfo;
-  pods: PodInfo[];
-  probe: HealthProbe;
-  usage: AppUsage | MetricsUnavailable;
-}
-
-/** One row of the status panel. */
-export interface EnvironmentSummary {
-  environment: string;
-  app: string;
-  /** "NOT DEPLOYED" when nothing runs there; "UNKNOWN" when the cluster could not be asked. */
-  status: HealthStatus | "NOT DEPLOYED" | "UNKNOWN";
-  /** Why the status is what it is. Empty when HEALTHY. */
-  reason: string;
-  /** Image running now, or null when nothing is deployed or it could not be read. */
-  image: string | null;
-  /** When this environment was last changed through the assistant, from the history. */
-  lastUpdate: Date | null;
-}
-
-export interface StatusServiceDeps {
-  gateway: ClusterGateway;
-  metrics: MetricsService;
-  explainer: FailureExplainer;
-  history: HistoryStore;
-  config: AppConfig;
-  /** The current time. Tests replace this. */
-  now?: () => Date;
-}
-
-// Explaining a pod can take two calls (log and events). With many broken pods that
-// adds up, so only the first few are explained and the rest are counted.
-const MAX_EXPLAINED_PODS = 5;
+import { thresholdsFor } from "@/config.ts";
+import { SERVICE_PORT } from "@/constants/deployment.ts";
+import { MAX_EXPLAINED_PODS } from "@/constants/monitoring.ts";
+import { AppError } from "@/errors.ts";
+import type { FailureExplainer } from "@/services/failureExplainer.ts";
+import { evaluateHealth, findProblemPods } from "@/services/healthEvaluator.ts";
+import type { HistoryStore } from "@/services/historyStore.ts";
+import type { MetricsService } from "@/services/metricsService.ts";
+import { findDeployment, resolveTarget } from "@/services/target.ts";
+import type { ClusterGateway, PodInfo } from "@/types/cluster.ts";
+import type { AppConfig } from "@/types/config.ts";
+import type {
+  AppStatus,
+  AppUsage,
+  EnvironmentSummary,
+  MetricsUnavailable,
+  NodesReport,
+  PodProblem,
+  StatusServiceDeps,
+} from "@/types/monitoring.ts";
 
 export class StatusService {
   private readonly gateway: ClusterGateway;

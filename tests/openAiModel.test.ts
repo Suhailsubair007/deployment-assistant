@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { createOpenAiModel } from "../src/agent/openAiModel.ts";
-import type { ModelRequest } from "../src/agent/openAiReader.ts";
-import { ModelUnavailableError } from "../src/errors.ts";
+import { createOpenAiModel } from "@/agent/openAiModel.ts";
+import type { ModelRequest } from "@/types/llm.ts";
+import { ModelUnavailableError } from "@/errors.ts";
 
 // These tests run the real OpenAI library, but replace the network call underneath it,
 // so nothing is sent to OpenAI and no API key is needed.

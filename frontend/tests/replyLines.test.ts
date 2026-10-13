@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { groupFacts, parseReply, splitStatusWords } from "../lib/reply-lines.ts";
+import { groupFacts, parseReply, splitStatusWords } from "@/lib/reply-lines.ts";
 
 const text = (value: string) => ({ kind: "text", text: value });
 

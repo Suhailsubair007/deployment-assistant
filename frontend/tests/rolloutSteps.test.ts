@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { buildRolloutSteps } from "../lib/rollout-steps.ts";
+import { buildRolloutSteps } from "@/lib/rollout-steps.ts";
 
 const statesOf = (steps: { state: string }[]) => steps.map((step) => step.state);
 

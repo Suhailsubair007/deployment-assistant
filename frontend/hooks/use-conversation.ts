@@ -4,9 +4,8 @@ import { useEffect, useState } from "react";
 
 import { decideAction, getSession, sendMessage } from "@/lib/api";
 import { addReply, closeAction, fromStoredMessages } from "@/lib/conversation";
-import type { ChatItem } from "@/lib/conversation";
 import { messageOf } from "@/lib/http";
-import type { AgentReply } from "@/lib/types";
+import type { AgentReply, ChatItem } from "@/lib/types";
 
 function now(): string {
   return new Date().toISOString();
@@ -19,8 +18,6 @@ function errorItem(error: unknown): ChatItem {
 /** This tab's conversation: its messages, and the two ways the user adds to it. */
 export function useConversation() {
   const [items, setItems] = useState<ChatItem[]>([]);
-  // False until the server has said what this tab's conversation holds. The page waits for
-  // that before it greets, so a reload never shows the greeting over an older conversation.
   const [isLoaded, setIsLoaded] = useState(false);
   const [isSending, setIsSending] = useState(false);
   // How many requests are waiting for an answer. "Working on it" shows while it is above zero.

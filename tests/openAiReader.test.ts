@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { parseMessage } from "../src/agent/intentParser.ts";
-import type { ParsedMessage } from "../src/agent/intentParser.ts";
-import { createOpenAiReader, toParsedMessage } from "../src/agent/openAiReader.ts";
-import type { ModelRequest, ToolCall } from "../src/agent/openAiReader.ts";
-import { ModelUnavailableError } from "../src/errors.ts";
+import { parseMessage } from "@/agent/intentParser.ts";
+import type { ParsedMessage } from "@/types/agent.ts";
+import { createOpenAiReader, toParsedMessage } from "@/agent/openAiReader.ts";
+import type { ModelRequest, ToolCall } from "@/types/llm.ts";
+import { ModelUnavailableError } from "@/errors.ts";
 
 const known = { environments: ["staging", "prod"], apps: ["sample-app"] };
 

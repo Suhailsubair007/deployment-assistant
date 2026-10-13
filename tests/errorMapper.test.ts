@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { toUserError } from "../src/api/errorMapper.ts";
-import { ConfigError } from "../src/config.ts";
+import { toUserError } from "@/api/errorMapper.ts";
+import { ConfigError } from "@/config.ts";
 import {
   AppError,
   ClusterUnreachableError,
@@ -11,7 +11,7 @@ import {
   InvalidRequestError,
   MetricsUnavailableError,
   NotFoundError,
-} from "../src/errors.ts";
+} from "@/errors.ts";
 
 const noLog = (): void => {};
 

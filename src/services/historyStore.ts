@@ -1,73 +1,22 @@
-// The deployment history, kept in SQLite. It also acts as the lock that allows
-// only one change per environment at a time.
-
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
-import { DeployInProgressError } from "../errors.ts";
-
-export type DeploymentAction = "deploy" | "rollback" | "scale";
-export type DeploymentStatus = "in_progress" | "succeeded" | "failed" | "timed_out" | "interrupted";
-
-export interface DeploymentRecord {
-  id: number;
-  environment: string;
-  app: string;
-  action: DeploymentAction;
-  /** Image after this change. */
-  image: string;
-  /** Image that was running before this change; null when the app was not deployed yet. */
-  previousImage: string | null;
-  replicas: number;
-  status: DeploymentStatus;
-  requestedBy: string;
-  /** How it ended, for example why it failed. */
-  message: string | null;
-  startedAt: Date;
-  finishedAt: Date | null;
-}
-
-/** What is known when a deployment starts. */
-export type NewDeployment = Pick<
+import { HISTORY_SCHEMA } from "@/constants/deployment.ts";
+import { DeployInProgressError } from "@/errors.ts";
+import type {
+  DeploymentAction,
   DeploymentRecord,
-  "environment" | "app" | "action" | "image" | "previousImage" | "replicas" | "requestedBy"
->;
-
-export interface HistoryFilter {
-  limit: number;
-  requestedBy?: string;
-  environment?: string;
-}
-
-const SCHEMA = `
-  CREATE TABLE IF NOT EXISTS deployments (
-    id             INTEGER PRIMARY KEY AUTOINCREMENT,
-    environment    TEXT NOT NULL,
-    app            TEXT NOT NULL,
-    action         TEXT NOT NULL,
-    image          TEXT NOT NULL,
-    previous_image TEXT,
-    replicas       INTEGER NOT NULL,
-    status         TEXT NOT NULL,
-    requested_by   TEXT NOT NULL,
-    message        TEXT,
-    started_at     TEXT NOT NULL,
-    finished_at    TEXT
-  );
-
-  -- The lock: the database itself refuses a second row with status 'in_progress'
-  -- for the same environment, even if two requests arrive in the same instant.
-  CREATE UNIQUE INDEX IF NOT EXISTS one_active_deployment_per_environment
-    ON deployments (environment) WHERE status = 'in_progress';
-`;
+  DeploymentStatus,
+  HistoryFilter,
+  NewDeployment,
+  Row,
+} from "@/types/deployment.ts";
 
 /** 7 -> "dep-007". */
 export function formatDeploymentId(id: number): string {
   return `dep-${String(id).padStart(3, "0")}`;
 }
-
-type Row = Record<string, unknown>;
 
 function toRecord(row: Row): DeploymentRecord {
   return {
@@ -95,13 +44,10 @@ export class HistoryStore {
       mkdirSync(dirname(path), { recursive: true });
     }
     this.db = new DatabaseSync(path);
-    this.db.exec(SCHEMA);
+    this.db.exec(HISTORY_SCHEMA);
   }
 
-  /**
-   * Records the start of a change and takes the environment's lock.
-   * Throws DeployInProgressError when another change to that environment is still running.
-   */
+  /** Records the start of a change and takes the environment's lock. */
   start(deployment: NewDeployment): DeploymentRecord {
     try {
       const result = this.db
@@ -185,11 +131,7 @@ export class HistoryStore {
       .map(toRecord);
   }
 
-  /**
-   * Called once at startup. A row still 'in_progress' then belongs to a run of the
-   * assistant that stopped half-way; nobody is watching that rollout any more.
-   * Marking it 'interrupted' frees the environment. Returns how many rows were changed.
-   */
+  /** Called once at startup. */
   recoverInterrupted(): number {
     const result = this.db
       .prepare(

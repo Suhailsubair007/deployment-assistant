@@ -1,12 +1,5 @@
-// Turns the state of a pod into one plain sentence that says why it is not working.
-
-import type { ClusterGateway, EventInfo, PodInfo } from "../cluster/gateway.ts";
-
-const IMAGE_PROBLEMS = new Set(["ImagePullBackOff", "ErrImagePull", "InvalidImageName"]);
-/** Waiting reasons a new pod passes through on its way up. They are not problems. */
-export const NORMAL_STARTUP = new Set(["ContainerCreating", "PodInitializing"]);
-
-const LOG_LINES_TO_READ = 5;
+import { IMAGE_PROBLEMS, LOG_LINES_TO_READ, NORMAL_STARTUP } from "@/constants/monitoring.ts";
+import type { ClusterGateway, EventInfo, PodInfo } from "@/types/cluster.ts";
 
 function plural(count: number, word: string): string {
   return `${count} ${word}${count === 1 ? "" : "s"}`;
@@ -18,12 +11,7 @@ function asSentence(text: string): string {
   return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
 }
 
-/**
- * Explains what is wrong with a pod, or returns null when nothing is.
- *
- * @param logTail the pod's last log lines, oldest first (may be empty)
- * @param events  events about the pod, oldest first (may be empty)
- */
+/** Explains what is wrong with a pod, or returns null when nothing is. */
 export function explainPod(pod: PodInfo, logTail: string[], events: EventInfo[] = []): string | null {
   // 1. No node has room for the pod.
   if (pod.unschedulableMessage) {

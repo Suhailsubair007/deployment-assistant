@@ -1,12 +1,6 @@
-// Decides what a failed request tells the user.
-//
-// An AppError already carries a sentence written for the user, so it is passed on.
-// Anything else is a bug: the user gets a short message with a reference number,
-// and the full error (with its stack trace) goes to the server log under that number.
-
 import { randomUUID } from "node:crypto";
 
-import { ConfigError } from "../config.ts";
+import { ConfigError } from "@/config.ts";
 import {
   AppError,
   ClusterUnreachableError,
@@ -14,15 +8,8 @@ import {
   ForbiddenError,
   MetricsUnavailableError,
   NotFoundError,
-} from "../errors.ts";
-
-export interface UserError {
-  /** HTTP status code for the response. */
-  status: number;
-  message: string;
-}
-
-export type ErrorLogger = (...parts: unknown[]) => void;
+} from "@/errors.ts";
+import type { ErrorLogger, UserError } from "@/types/api.ts";
 
 function httpStatusFor(error: AppError): number {
   if (error instanceof ForbiddenError) {

@@ -36,8 +36,6 @@ export function ChatPanel({ environments, onOperationFinished }: ChatPanelProps)
     }
   }, []);
 
-  // Every new message, and Buddy starting to work, moves the view to the bottom.
-  // The list has "scroll-smooth", so the view glides there instead of jumping.
   useEffect(scrollToNewest, [items, isWorking, scrollToNewest]);
 
   // The cursor is in the message box when the page opens and again after each answer.

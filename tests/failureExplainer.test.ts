@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import type { PodInfo } from "../src/cluster/gateway.ts";
-import { explainPod } from "../src/services/failureExplainer.ts";
+import type { PodInfo } from "@/types/cluster.ts";
+import { explainPod } from "@/services/failureExplainer.ts";
 
 function pod(overrides: Partial<PodInfo>): PodInfo {
   return {

@@ -1,40 +1,6 @@
-import { AppError, ClusterUnreachableError, ForbiddenError, NotFoundError } from "../errors.ts";
-
-/** What the gateway was doing when a call failed. Used to write the message. */
-export interface CallContext {
-  /** Finishes the sentence "The assistant is not allowed to ...", for example "update the deployment". */
-  action: string;
-  namespace?: string;
-  /** Name of the kubeconfig context. */
-  context: string;
-}
-
-/** The parts of a Kubernetes error answer (a "Status" object) that we use. */
-interface KubernetesStatus {
-  message?: string;
-  details?: { name?: string; kind?: string };
-}
-
-const KIND_NAMES: Record<string, string> = {
-  deployments: "Deployment",
-  services: "Service",
-  namespaces: "Namespace",
-  pods: "Pod",
-  nodes: "Node",
-};
-
-// Codes Node reports when a server cannot be reached at all.
-const NETWORK_ERROR_CODES = new Set([
-  "ECONNREFUSED",
-  "ECONNRESET",
-  "ENOTFOUND",
-  "EAI_AGAIN",
-  "EHOSTUNREACH",
-  "ENETUNREACH",
-  "ETIMEDOUT",
-  "UND_ERR_CONNECT_TIMEOUT",
-  "UND_ERR_SOCKET",
-]);
+import { KIND_NAMES, NETWORK_ERROR_CODES } from "@/constants/cluster.ts";
+import { AppError, ClusterUnreachableError, ForbiddenError, NotFoundError } from "@/errors.ts";
+import type { CallContext, KubernetesStatus } from "@/types/cluster.ts";
 
 /** The body of a Kubernetes error arrives as an object or as JSON text. */
 function readStatus(body: unknown): KubernetesStatus {
@@ -52,10 +18,7 @@ function readStatus(body: unknown): KubernetesStatus {
   return {};
 }
 
-/**
- * The HTTP status Kubernetes answered with, or null when the error is not a Kubernetes answer.
- * The library puts the status of a failed call in `code`.
- */
+/** The HTTP status Kubernetes answered with, or null when the error is not a Kubernetes answer. */
 export function httpStatusOf(error: unknown): number | null {
   const code = (error as { code?: unknown } | null)?.code;
   return typeof code === "number" ? code : null;
@@ -78,11 +41,7 @@ function isNetworkFailure(error: Error): boolean {
   return false;
 }
 
-/**
- * Turns an error thrown by the Kubernetes library into one the user can read.
- * Errors that did not come from Kubernetes are returned unchanged: they are bugs,
- * and the web layer reports them without details.
- */
+/** Turns an error thrown by the Kubernetes library into one the user can read. */
 export function toAppError(error: unknown, where: CallContext): Error {
   if (!(error instanceof Error)) {
     return new Error(String(error));

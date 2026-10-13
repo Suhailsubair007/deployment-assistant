@@ -1,55 +1,38 @@
-// The web API. Each handler reads the request, calls the agent or a service, and
-// returns JSON. There is no logic here and no Kubernetes call: that is the rule that
-// keeps this layer thin.
-
 import express from "express";
 import type { ErrorRequestHandler, Express, Request } from "express";
 
-import type { Agent } from "../agent/agent.ts";
-import type { SessionStore } from "../agent/sessionStore.ts";
-import { InvalidRequestError, NotFoundError } from "../errors.ts";
-import type { OperationStore } from "../services/operationStore.ts";
-import type { StatusService } from "../services/statusService.ts";
-import { toUserError } from "./errorMapper.ts";
-import type { ErrorLogger } from "./errorMapper.ts";
+import { toUserError } from "@/api/errorMapper.ts";
+import {
+  ANONYMOUS_USER,
+  JSON_BODY_LIMIT,
+  MAX_MESSAGE_LENGTH,
+  MAX_USER_NAME_LENGTH,
+  SESSION_HEADER,
+  SESSION_ID_PATTERN,
+  USER_HEADER,
+} from "@/constants/api.ts";
+import { InvalidRequestError, NotFoundError } from "@/errors.ts";
+import type { AppDeps } from "@/types/api.ts";
 
-export interface AppDeps {
-  agent: Agent;
-  operations: OperationStore;
-  statuses: StatusService;
-  sessions: SessionStore;
-  /** Folder with the built page (frontend/out). Left out in tests. */
-  staticFolder?: string;
-  /** Where unexpected errors are logged. Tests silence it. */
-  logError?: ErrorLogger;
-}
-
-const MAX_MESSAGE_LENGTH = 500;
-const SESSION_ID = /^[\w-]{8,64}$/;
-
-/**
- * Every tab sends its own ID in the X-Session-Id header.
- * Requiring a custom header also means another website cannot make the browser send
- * a request here without the user knowing: browsers block that for custom headers.
- */
+/** Every tab sends its own ID in the X-Session-Id header. */
 function sessionIdOf(request: Request): string {
-  const id = request.get("X-Session-Id") ?? "";
-  if (!SESSION_ID.test(id)) {
-    throw new InvalidRequestError("The X-Session-Id header is missing or not valid.");
+  const id = request.get(SESSION_HEADER) ?? "";
+  if (!SESSION_ID_PATTERN.test(id)) {
+    throw new InvalidRequestError(`The ${SESSION_HEADER} header is missing or not valid.`);
   }
   return id;
 }
 
 /** The name recorded as "requested by" in the history. */
 function userNameOf(request: Request): string {
-  const name = (request.get("X-User-Name") ?? "").trim().slice(0, 40);
-  return name === "" ? "anonymous" : name;
+  const name = (request.get(USER_HEADER) ?? "").trim().slice(0, MAX_USER_NAME_LENGTH);
+  return name === "" ? ANONYMOUS_USER : name;
 }
 
 export function createApp(deps: AppDeps): Express {
   const { agent, operations, statuses, sessions } = deps;
   const app = express();
-  app.use(express.json({ limit: "10kb" }));
+  app.use(express.json({ limit: JSON_BODY_LIMIT }));
 
   // A typed message.
   app.post("/api/chat", async (request, response) => {

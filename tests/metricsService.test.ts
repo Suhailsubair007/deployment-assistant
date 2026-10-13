@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { ClusterUnreachableError, MetricsUnavailableError } from "../src/errors.ts";
-import { MetricsService } from "../src/services/metricsService.ts";
-import type { AppUsage } from "../src/services/metricsService.ts";
+import { ClusterUnreachableError, MetricsUnavailableError } from "@/errors.ts";
+import { MetricsService } from "@/services/metricsService.ts";
+import type { AppUsage } from "@/types/monitoring.ts";
 import { FakeGateway } from "./helpers/fakeGateway.ts";
 
 const MI = 1024 * 1024;

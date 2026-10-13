@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { parseMessage } from "../src/agent/intentParser.ts";
-import { createMessageReader, createRuleReader } from "../src/agent/messageReader.ts";
+import { parseMessage } from "@/agent/intentParser.ts";
+import { createMessageReader, createRuleReader } from "@/agent/messageReader.ts";
 
 const known = { environments: ["staging", "prod"], apps: ["sample-app"] };
 const llm = { model: "gpt-4.1-mini", requestTimeoutMs: 8000, retryAfterSeconds: 60 };

@@ -13,8 +13,10 @@
     "erasableSyntaxOnly": true,
     // Type-only imports must say "import type", so Node knows it can drop them.
     "verbatimModuleSyntax": true,
-    // Imports name the real file, for example "./config.ts".
-    "allowImportingTsExtensions": true
+    // Imports name the real file, for example "@/config.ts".
+    "allowImportingTsExtensions": true,
+    // "@/" means the src folder. scripts/register-alias.mjs teaches Node the same.
+    "paths": { "@/*": ["./src/*"] }
   },
   "include": ["src", "tests", "scripts"]
 }

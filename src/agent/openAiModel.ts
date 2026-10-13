@@ -1,21 +1,8 @@
-// The call to OpenAI. This is the only file that uses the OpenAI library.
-// It sends one message with the list of tools and returns the tool the model picked.
-// Every way the call can fail becomes one sentence the user can read.
-
 import OpenAI, { APIConnectionError, APIConnectionTimeoutError, APIError } from "openai";
 
-import { ModelUnavailableError } from "../errors.ts";
-import { ANSWER_NOT_USABLE } from "./openAiReader.ts";
-import type { AskModel } from "./openAiReader.ts";
-
-export interface OpenAiModelSettings {
-  apiKey: string;
-  model: string;
-  /** Give up on one call after this long. */
-  timeoutMs: number;
-  /** How the network call is made. Tests replace this, so they send nothing to OpenAI. */
-  fetch?: typeof fetch;
-}
+import { ANSWER_NOT_USABLE } from "@/constants/llm.ts";
+import { ModelUnavailableError } from "@/errors.ts";
+import type { AskModel, OpenAiModelSettings } from "@/types/llm.ts";
 
 /** Why a call failed: a sentence for the user, and a short technical note for the server log. */
 function describeFailure(error: unknown, settings: OpenAiModelSettings): ModelUnavailableError {

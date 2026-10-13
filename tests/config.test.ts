@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { ConfigError, loadConfig, thresholdsFor } from "../src/config.ts";
+import { ConfigError, loadConfig, thresholdsFor } from "@/config.ts";
 
 const SHIPPED_CONFIG = "config/app.config.yaml";
 

@@ -1,7 +1,4 @@
-// The one doorway to the cluster.
-//
-// Services depend on this interface and on the plain data types below, never on the
-// Kubernetes library. The real implementation is kubeGateway.ts; unit tests use a fake.
+import type { AppsV1Api, CoreV1Api, Metrics } from "@kubernetes/client-node";
 
 /** CPU and memory as Kubernetes writes them, for example "100m" and "128Mi". Missing when not set. */
 export interface ResourceQuantities {
@@ -120,4 +117,28 @@ export interface ClusterGateway {
 
   /** Calls GET /health on the app through its Service and measures how long it takes. */
   getServiceHealth(namespace: string, service: string, port: number, timeoutMs: number): Promise<HealthProbe>;
+}
+
+/** What the gateway was doing when a call failed. Used to write the message. */
+export interface CallContext {
+  /** Finishes the sentence "The assistant is not allowed to ...", for example "update the deployment". */
+  action: string;
+  namespace?: string;
+  /** Name of the kubeconfig context. */
+  context: string;
+}
+
+/** The parts of a Kubernetes error answer (a "Status" object) that we use. */
+export interface KubernetesStatus {
+  message?: string;
+  details?: { name?: string; kind?: string };
+}
+
+export interface KubeClients {
+  /** Deployments. */
+  apps: AppsV1Api;
+  /** Pods, Services, Events, logs, Nodes. */
+  core: CoreV1Api;
+  /** CPU and memory usage from metrics-server (metrics.k8s.io). */
+  metrics: Metrics;
 }

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { TestContext } from "node:test";
 
-import { callApi, messageOf } from "../lib/http.ts";
+import { callApi, messageOf } from "@/lib/http.ts";
 
 const identity = { sessionId: "tab-12345678", userName: "suhail" };
 

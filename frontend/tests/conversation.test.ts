@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { addReply, closeAction, fromStoredMessages } from "../lib/conversation.ts";
-import type { ChatItem } from "../lib/conversation.ts";
+import { addReply, closeAction, fromStoredMessages } from "@/lib/conversation.ts";
+import type { ChatItem } from "@/lib/types.ts";
 
 const AT = "2026-10-13T10:00:00.000Z";
 

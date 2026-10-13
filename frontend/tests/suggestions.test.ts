@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { buildSuggestions } from "../lib/suggestions.ts";
+import { buildSuggestions } from "@/lib/suggestions.ts";
 
 test("examples use the first environment and its app, and the last environment", () => {
   const examples = buildSuggestions([

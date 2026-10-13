@@ -1,18 +1,18 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { Agent } from "../src/agent/agent.ts";
-import type { ParsedMessage } from "../src/agent/intentParser.ts";
-import type { MessageReader, Reading } from "../src/agent/messageReader.ts";
-import { SessionStore } from "../src/agent/sessionStore.ts";
-import { loadConfig } from "../src/config.ts";
-import { ClusterUnreachableError, MetricsUnavailableError } from "../src/errors.ts";
-import { DeploymentService } from "../src/services/deploymentService.ts";
-import { FailureExplainer } from "../src/services/failureExplainer.ts";
-import { HistoryStore } from "../src/services/historyStore.ts";
-import { MetricsService } from "../src/services/metricsService.ts";
-import { OperationStore } from "../src/services/operationStore.ts";
-import { StatusService } from "../src/services/statusService.ts";
+import { Agent } from "@/agent/agent.ts";
+import type { ParsedMessage } from "@/types/agent.ts";
+import type { MessageReader, Reading } from "@/types/agent.ts";
+import { SessionStore } from "@/agent/sessionStore.ts";
+import { loadConfig } from "@/config.ts";
+import { ClusterUnreachableError, MetricsUnavailableError } from "@/errors.ts";
+import { DeploymentService } from "@/services/deploymentService.ts";
+import { FailureExplainer } from "@/services/failureExplainer.ts";
+import { HistoryStore } from "@/services/historyStore.ts";
+import { MetricsService } from "@/services/metricsService.ts";
+import { OperationStore } from "@/services/operationStore.ts";
+import { StatusService } from "@/services/statusService.ts";
 import { FakeGateway } from "./helpers/fakeGateway.ts";
 
 const TAB = "tab-1";

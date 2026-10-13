@@ -1,38 +1,13 @@
-// Builds the Deployment and Service the assistant sends to Kubernetes, from the
-// templates in k8s/templates. Every value is checked before it goes into a template,
-// so nothing a user types can change the shape of the manifest.
-
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parse } from "yaml";
 
-import type { Manifest } from "../cluster/gateway.ts";
-import type { ResourceAmounts } from "../config.ts";
-import { InvalidRequestError } from "../errors.ts";
-import { parseCpuToMillicores, parseMemoryToBytes } from "./units.ts";
-
-/** The port of the Service. The Service forwards it to the app's own port. */
-export const SERVICE_PORT = 80;
-
-const TEMPLATE_FOLDER = join(import.meta.dirname, "../../k8s/templates");
-
-export interface DeployParams {
-  /** Name of the app; used for the Deployment, the Service and the "app" label. */
-  name: string;
-  /** Full image with version, for example "sample-app:v2". */
-  image: string;
-  replicas: number;
-  /** Port the app listens on inside the container. */
-  port: number;
-  resources: { requests: ResourceAmounts; limits: ResourceAmounts };
-}
-
-// Kubernetes names: lowercase letters, digits and dashes, at most 63 characters.
-const NAME = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/;
-// Image repository, optionally with a registry: "sample-app", "localhost:5000/team/sample-app".
-const REPOSITORY = /^[a-z0-9]+(?:[._\-/:][a-z0-9]+)*$/;
-// Image version (tag): "v2", "1.4.0", "2026-10-12_build7".
-const TAG = /^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$/;
+import { APP_NAME_PATTERN, IMAGE_REPOSITORY_PATTERN, SERVICE_PORT, IMAGE_TAG_PATTERN, TEMPLATE_FOLDER } from "@/constants/deployment.ts";
+import { InvalidRequestError } from "@/errors.ts";
+import { parseCpuToMillicores, parseMemoryToBytes } from "@/services/units.ts";
+import type { Manifest } from "@/types/cluster.ts";
+import type { ResourceAmounts } from "@/types/config.ts";
+import type { DeployParams } from "@/types/deployment.ts";
 
 /** Splits "registry:5000/app:v2" into the repository and the version after the last colon. */
 function splitImage(image: string): { repository: string; tag: string | null } {
@@ -54,12 +29,12 @@ function checkImage(image: string): void {
       `I don't deploy the "latest" tag, because nobody can tell which version it is. Name a version, for example ${repository}:v2.`,
     );
   }
-  if (!TAG.test(tag)) {
+  if (!IMAGE_TAG_PATTERN.test(tag)) {
     throw new InvalidRequestError(
       `"${tag}" is not a valid image version. Use letters, digits, dots, dashes and underscores.`,
     );
   }
-  if (!REPOSITORY.test(repository)) {
+  if (!IMAGE_REPOSITORY_PATTERN.test(repository)) {
     throw new InvalidRequestError(`"${repository}" is not a valid image name.`);
   }
 }
@@ -76,7 +51,7 @@ function checkQuantities(amounts: ResourceAmounts): void {
 }
 
 function checkParams(params: DeployParams): void {
-  if (!NAME.test(params.name)) {
+  if (!APP_NAME_PATTERN.test(params.name)) {
     throw new InvalidRequestError(`"${params.name}" is not a valid app name.`);
   }
   checkImage(params.image);

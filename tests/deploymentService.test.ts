@@ -1,18 +1,18 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { loadConfig } from "../src/config.ts";
+import { loadConfig } from "@/config.ts";
 import {
   ClusterUnreachableError,
   DeployInProgressError,
   ForbiddenError,
   InvalidRequestError,
   NotFoundError,
-} from "../src/errors.ts";
-import { DeploymentService } from "../src/services/deploymentService.ts";
-import { FailureExplainer } from "../src/services/failureExplainer.ts";
-import { HistoryStore } from "../src/services/historyStore.ts";
-import { OperationStore } from "../src/services/operationStore.ts";
+} from "@/errors.ts";
+import { DeploymentService } from "@/services/deploymentService.ts";
+import { FailureExplainer } from "@/services/failureExplainer.ts";
+import { HistoryStore } from "@/services/historyStore.ts";
+import { OperationStore } from "@/services/operationStore.ts";
 import { FakeGateway } from "./helpers/fakeGateway.ts";
 
 const STAGING = { environment: "staging", app: "sample-app" };

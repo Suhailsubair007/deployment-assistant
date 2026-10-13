@@ -3,7 +3,7 @@ import { cn } from "cn";
 
 import { StatusPill } from "@/components/status-pill";
 import { groupFacts, parseReply } from "@/lib/reply-lines";
-import type { FactsLine, TextPart } from "@/lib/reply-lines";
+import type { FactsLine, TextPart } from "@/lib/types";
 
 const TONE_OF_WORD = { HEALTHY: "healthy", DEGRADED: "degraded", DOWN: "down" } as const;
 
@@ -19,10 +19,7 @@ function Parts({ parts }: { parts: TextPart[] }) {
   );
 }
 
-/**
- * Rows of facts as a table: one fact per cell, in the fixed-width font so numbers line up.
- * A table that is wider than the message scrolls sideways instead of breaking its rows.
- */
+/** Rows of facts as a table: one fact per cell, in the fixed-width font so numbers line up. */
 function FactsTable({ rows, style }: { rows: FactsLine[]; style: CSSProperties }) {
   const first = rows[0];
   if (first === undefined) {
@@ -53,10 +50,7 @@ function FactsTable({ rows, style }: { rows: FactsLine[]; style: CSSProperties }
   );
 }
 
-/**
- * Draws an agent reply piece by piece. React writes every piece as text, never as HTML,
- * so a log line or pod name can never be run by the browser.
- */
+/** Draws an agent reply piece by piece. */
 export function ReplyText({ text }: { text: string }) {
   return groupFacts(parseReply(text)).map((block, index) => {
     // Each piece appears a moment after the one above it, so a long answer unfolds from the top.

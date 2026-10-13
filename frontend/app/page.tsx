@@ -1,16 +1,11 @@
 "use client";
 
-// The one page of the app. It only talks to our own web API; it knows nothing about Kubernetes.
-// "use client" means these components run in the browser: the conversation belongs to one tab.
-
 import { ChatPanel } from "@/components/chat-panel";
 import { Header } from "@/components/header";
 import { StatusPanel } from "@/components/status-panel";
 import { useEnvironmentStatus } from "@/hooks/use-environment-status";
 
 export default function Page() {
-  // The status lives here because both halves use it: the panel shows it, and the chat
-  // refreshes it when a change has finished.
   const status = useEnvironmentStatus();
 
   return (

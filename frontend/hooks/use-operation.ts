@@ -5,13 +5,9 @@ import { useEffect, useState } from "react";
 import { getOperation } from "@/lib/api";
 import { messageOf } from "@/lib/http";
 import type { Operation } from "@/lib/types";
+import { PROGRESS_POLL_MS } from "@/lib/constants";
 
-const PROGRESS_POLL_MS = 1000;
-
-/**
- * Asks the server once a second how a running change is doing.
- * The page stays usable meanwhile: this is a timer, not a waiting request.
- */
+/** Asks the server once a second how a running change is doing. */
 export function useOperation(operationId: string) {
   const [operation, setOperation] = useState<Operation | null>(null);
   const [error, setError] = useState<string | null>(null);

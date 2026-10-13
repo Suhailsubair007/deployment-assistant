@@ -1,11 +1,5 @@
-// One function for every call to our web API. The page knows nothing about Kubernetes;
-// it only talks to the API through here.
-
-/** Who is asking: the tab's conversation and the name stored as "requested by". */
-export interface Identity {
-  sessionId: string;
-  userName: string;
-}
+import { SESSION_HEADER, USER_HEADER } from "@/lib/constants.ts";
+import type { Identity } from "@/lib/types.ts";
 
 /** Calls our API. Returns the JSON body, or throws an Error with the server's own sentence. */
 export async function callApi<T>(method: "GET" | "POST", path: string, identity: Identity, body?: unknown): Promise<T> {
@@ -15,8 +9,8 @@ export async function callApi<T>(method: "GET" | "POST", path: string, identity:
       method,
       headers: {
         "Content-Type": "application/json",
-        "X-Session-Id": identity.sessionId,
-        "X-User-Name": identity.userName,
+        [SESSION_HEADER]: identity.sessionId,
+        [USER_HEADER]: identity.userName,
       },
       body: body === undefined ? undefined : JSON.stringify(body),
     });

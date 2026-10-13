@@ -1,60 +1,17 @@
 import { existsSync, readFileSync } from "node:fs";
 import { parse } from "yaml";
 
-/** When an app counts as DEGRADED. Every value comes from the config file. */
-export interface Thresholds {
-  memoryPercentOfLimit: number;
-  cpuPercentOfLimit: number;
-  restartCount: number;
-  oomKillWindowMinutes: number;
-  healthResponseMs: number;
-  pendingSeconds: number;
-}
-
-export interface EnvironmentConfig {
-  namespace: string;
-  /** Protected environments (prod) show an extra warning before a change. */
-  protected: boolean;
-}
-
-/** CPU and memory as Kubernetes writes them, for example "100m" and "128Mi". */
-export interface ResourceAmounts {
-  cpu: string;
-  memory: string;
-}
-
-export interface AppDefaults {
-  imageRepository: string;
-  port: number;
-  /** Replicas used the first time the app is deployed. */
-  replicas: number;
-  /** The assistant refuses to scale beyond this. */
-  maxReplicas: number;
-  resources: { requests: ResourceAmounts; limits: ResourceAmounts };
-}
-
-export interface Timeouts {
-  rolloutSeconds: number;
-  healthRequestMs: number;
-  pollIntervalMs: number;
-}
-
-/** Settings for reading chat messages with OpenAI. Used only when an API key is set. */
-export interface LlmSettings {
-  model: string;
-  /** Give up on one OpenAI call after this long. */
-  requestTimeoutMs: number;
-  /** After a failed call, the built-in rules read every message for this long. */
-  retryAfterSeconds: number;
-}
-
-export interface AppConfig {
-  environments: Record<string, EnvironmentConfig>;
-  apps: Record<string, AppDefaults>;
-  timeouts: Timeouts;
-  thresholds: { default: Thresholds; overrides: Record<string, Partial<Thresholds>> };
-  llm: LlmSettings;
-}
+import { LLM_DEFAULTS, THRESHOLD_KEYS } from "@/constants/config.ts";
+import type {
+  AppConfig,
+  AppDefaults,
+  EnvironmentConfig,
+  LlmSettings,
+  ResourceAmounts,
+  Section,
+  Thresholds,
+  Timeouts,
+} from "@/types/config.ts";
 
 /** A problem with the config file, written so the person editing it can fix it. */
 export class ConfigError extends Error {
@@ -63,17 +20,6 @@ export class ConfigError extends Error {
     this.name = "ConfigError";
   }
 }
-
-const THRESHOLD_KEYS: (keyof Thresholds)[] = [
-  "memoryPercentOfLimit",
-  "cpuPercentOfLimit",
-  "restartCount",
-  "oomKillWindowMinutes",
-  "healthResponseMs",
-  "pendingSeconds",
-];
-
-type Section = Record<string, unknown>;
 
 function fail(problem: string): never {
   throw new ConfigError(`Config error: ${problem}`);
@@ -190,10 +136,6 @@ function readThresholdOverrides(
   }
   return overrides;
 }
-
-// Used for any llm setting the config file leaves out, so a file written before
-// the section existed still loads.
-const LLM_DEFAULTS: LlmSettings = { model: "gpt-4.1-mini", requestTimeoutMs: 8000, retryAfterSeconds: 60 };
 
 function readLlm(section: Section): LlmSettings {
   return {

@@ -1,6 +1,6 @@
 import { cn } from "cn";
 
-import type { BuddyMood } from "@/lib/buddy-mood";
+import type { BuddyMood } from "@/lib/types";
 
 /** The eyes carry the mood: ovals when resting or busy, arcs when pleased, small dots when uneasy. */
 function Eyes({ mood }: { mood: BuddyMood }) {
@@ -35,10 +35,7 @@ interface BuddyProps {
   className?: string;
 }
 
-/**
- * Buddy, the face of the assistant. The head is the same rounded square as a pod in a rollout.
- * The colour of the light and all movement are in globals.css, chosen by data-mood.
- */
+/** Buddy, the face of the assistant. */
 export function Buddy({ mood = "idle", isLive = false, className }: BuddyProps) {
   return (
     // Decoration only: the text next to Buddy always says the same in words.

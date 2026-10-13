@@ -1,59 +1,14 @@
-// Deploy, scale and roll back.
-//
-// Every change has two steps, matching the Confirm button in the chat:
-//   1. plan...()  works out what would change. It reads the cluster but changes nothing.
-//   2. execute()  carries the plan out: it takes the environment's lock, applies the
-//                 manifests, and then follows the rollout in the background.
-
-import type { ClusterGateway, PodInfo } from "../cluster/gateway.ts";
-import type { AppConfig } from "../config.ts";
-import { AppError, InvalidRequestError } from "../errors.ts";
-import type { FailureExplainer } from "./failureExplainer.ts";
-import { formatDeploymentId } from "./historyStore.ts";
-import type { DeploymentAction, DeploymentStatus, HistoryStore } from "./historyStore.ts";
-import { buildManifests } from "./manifestBuilder.ts";
-import type { Operation, OperationStore } from "./operationStore.ts";
-import { findDeployment, resolveTarget } from "./target.ts";
-
-/** A change that has been worked out but not carried out yet. Shown to the user for confirmation. */
-export interface ChangePlan {
-  action: DeploymentAction;
-  environment: string;
-  namespace: string;
-  app: string;
-  /** Image after the change. */
-  image: string;
-  /** Image running now; null when the app is not deployed yet. */
-  currentImage: string | null;
-  /** Replicas after the change. */
-  replicas: number;
-  /** Replicas now; null when the app is not deployed yet. */
-  currentReplicas: number | null;
-}
-
-export interface StartedOperation {
-  /** Progress can be read from this while the rollout runs. */
-  operation: Operation;
-  /** Settles when the rollout has finished, failed or timed out. It never rejects. */
-  done: Promise<void>;
-}
-
-export interface DeploymentServiceDeps {
-  gateway: ClusterGateway;
-  history: HistoryStore;
-  operations: OperationStore;
-  config: AppConfig;
-  explainer: FailureExplainer;
-  /** Put in front of image names, for example an ECR registry. Leave empty for local images. */
-  imageRegistry?: string;
-  /** How to wait between two rollout checks. Tests replace this so they do not really wait. */
-  sleep?: (ms: number) => Promise<void>;
-  /** The current time in milliseconds. Tests replace this together with `sleep`. */
-  now?: () => number;
-}
-
-// A new pod in one of these states will not recover by waiting, so the rollout stops early.
-const GIVE_UP_REASONS = new Set(["ImagePullBackOff", "InvalidImageName", "CrashLoopBackOff"]);
+import { GIVE_UP_REASONS } from "@/constants/deployment.ts";
+import { AppError, InvalidRequestError } from "@/errors.ts";
+import type { FailureExplainer } from "@/services/failureExplainer.ts";
+import { formatDeploymentId } from "@/services/historyStore.ts";
+import type { HistoryStore } from "@/services/historyStore.ts";
+import { buildManifests } from "@/services/manifestBuilder.ts";
+import type { OperationStore } from "@/services/operationStore.ts";
+import { findDeployment, resolveTarget } from "@/services/target.ts";
+import type { ClusterGateway, PodInfo } from "@/types/cluster.ts";
+import type { AppConfig } from "@/types/config.ts";
+import type { ChangePlan, DeploymentServiceDeps, DeploymentStatus, StartedOperation } from "@/types/deployment.ts";
 
 export class DeploymentService {
   private readonly gateway: ClusterGateway;
@@ -162,11 +117,7 @@ export class DeploymentService {
 
   // ---- Step 2: carrying a plan out ----
 
-  /**
-   * Starts the change and returns as soon as Kubernetes has accepted it.
-   * Throws when the change cannot start: the environment is busy, it changed since
-   * the plan was made, or Kubernetes refused the manifests.
-   */
+  /** Starts the change and returns as soon as Kubernetes has accepted it. */
   async execute(plan: ChangePlan, requestedBy: string): Promise<StartedOperation> {
     const { defaults } = resolveTarget(this.config, plan.environment, plan.app);
 
@@ -195,8 +146,6 @@ export class DeploymentService {
       resources: defaults.resources,
     });
 
-    // This is the lock. If two requests reach this line together, the database lets
-    // exactly one of them insert its row; the other gets DeployInProgressError.
     const record = this.history.start({
       environment: plan.environment,
       app: plan.app,

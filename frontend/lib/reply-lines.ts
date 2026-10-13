@@ -1,18 +1,5 @@
-// Agent replies are plain text. This file cuts a reply into lines and parts, so the page
-// can give three patterns their own look without the server sending any HTML:
-// "- " starts a list item, "Note: " a side note, and " | " separates facts.
-// The words HEALTHY, DEGRADED and DOWN become coloured labels, and rows of facts become tables.
-
-export type HealthWord = "HEALTHY" | "DEGRADED" | "DOWN";
-
-export type TextPart = { kind: "text"; text: string } | { kind: "status"; status: HealthWord };
-
-export type ReplyLine =
-  | { kind: "plain" | "note" | "bullet"; isLead: boolean; parts: TextPart[] }
-  | { kind: "facts"; isLead: boolean; indent: number; facts: TextPart[][] };
-
-// The brackets make split() keep the matched word; \b stops a match inside "SHUTDOWN".
-const STATUS_WORDS = /\b(HEALTHY|DEGRADED|DOWN)\b/;
+import { STATUS_WORDS } from "@/lib/constants.ts";
+import type { HealthWord, ReplyBlock, ReplyLine, TextPart } from "@/lib/types.ts";
 
 function isHealthWord(word: string): word is HealthWord {
   return word === "HEALTHY" || word === "DEGRADED" || word === "DOWN";
@@ -50,16 +37,7 @@ export function parseReply(text: string): ReplyLine[] {
   });
 }
 
-export type FactsLine = Extract<ReplyLine, { kind: "facts" }>;
-export type TextLine = Exclude<ReplyLine, FactsLine>;
-
-/** A piece of a reply as the page draws it: one line of text, or a table of facts. */
-export type ReplyBlock = { kind: "line"; line: TextLine } | { kind: "table"; rows: FactsLine[] };
-
-/**
- * Puts rows of facts that follow each other into one table, so their columns line up.
- * Rows belong together when they have the same number of facts and the same indent.
- */
+/** Puts rows of facts that follow each other into one table, so their columns line up. */
 export function groupFacts(lines: ReplyLine[]): ReplyBlock[] {
   const blocks: ReplyBlock[] = [];
   for (const line of lines) {

@@ -1,64 +1,5 @@
-// Works out what a chat message asks for, using keywords and patterns (no AI model).
-//
-// The parser only reads the message. It never looks at the cluster and never decides
-// to change anything: it returns an intent name and the details it found, and the
-// Agent decides what to do with them.
-
-export type IntentName =
-  | "deploy"
-  | "scale"
-  | "rollback"
-  | "health"
-  | "usage"
-  | "nodes"
-  | "status"
-  | "history"
-  | "help";
-
-export interface ParsedMessage {
-  /** Null when the message names no action, for example the answer "staging" to a question. */
-  intent: IntentName | null;
-  app?: string;
-  environment?: string;
-  /** A word used where an environment was expected, but that is not one, for example "qa". */
-  unknownEnvironment?: string;
-  /** Image version, for example "v2". */
-  version?: string;
-  replicas?: number;
-  /** How many history rows were asked for. */
-  limit?: number;
-  /** True for "my deployments": only those of the person asking. */
-  mine?: boolean;
-  /** Set for "which pod uses the most memory?". */
-  topPodBy?: "cpu" | "memory";
-}
-
-export interface KnownNames {
-  environments: string[];
-  apps: string[];
-}
-
-// Checked from top to bottom; the first match wins.
-// Questions (health, usage, status) come before "deploy", so "is the deploy healthy?"
-// is read as a question. Reading an order as a question is harmless; the reverse is not.
-const INTENT_RULES: [IntentName, RegExp][] = [
-  ["rollback", /\broll\s?-?back\b|\brevert\b|\bundo\b/],
-  ["scale", /\bscale\b|\breplicas?\b/],
-  ["history", /\bdeployments\b|\bhistory\b/],
-  ["nodes", /\bnodes?\b/],
-  ["status", /\bstatus\b|\boverview\b/],
-  ["usage", /\bcpu\b|\bmemory\b|\bram\b|\bresources?\b|\busage\b/],
-  ["health", /\bhealthy?\b/],
-  ["deploy", /\bdeploy\b|\brelease\b|\bship\b/],
-  ["health", /\b(ok|okay|up|alive|working|running)\b/],
-  ["help", /\bhelp\b|what can you do|\bcommands\b/],
-];
-
-// Other words people use for an environment.
-const ENVIRONMENT_ALIASES: Record<string, string> = { production: "prod", stage: "staging" };
-
-// Words that can follow "to", "in", "of" at the end of a sentence without being an environment.
-const NOT_AN_ENVIRONMENT = new Set(["it", "them", "there", "here", "total", "use", "now", "this", "that"]);
+import { ENVIRONMENT_ALIASES, INTENT_RULES, NOT_AN_ENVIRONMENT } from "@/constants/agent.ts";
+import type { IntentName, KnownNames, ParsedMessage } from "@/types/agent.ts";
 
 export function escapeForRegex(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -155,9 +96,6 @@ export function parseMessage(text: string, known: KnownNames): ParsedMessage {
     }
   }
 
-  // Details are only read where they make sense, so the "5" in "last 5 deployments"
-  // is not taken for a replica count. A message without an intent may be an answer
-  // to a question, so it may carry a version or a number.
   if (intent === "deploy" || intent === null) {
     const version = findVersion(text, known.apps);
     if (version !== undefined) {

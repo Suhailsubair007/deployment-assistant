@@ -10,12 +10,12 @@ import {
   formatPlan,
   formatTopPod,
   formatUsage,
-} from "../src/agent/replyFormatter.ts";
-import type { PodInfo } from "../src/cluster/gateway.ts";
-import type { ChangePlan } from "../src/services/deploymentService.ts";
-import type { DeploymentRecord } from "../src/services/historyStore.ts";
-import type { AppUsage, PodUsageReport, ResourceUse } from "../src/services/metricsService.ts";
-import type { AppStatus } from "../src/services/statusService.ts";
+} from "@/agent/replyFormatter.ts";
+import type { PodInfo } from "@/types/cluster.ts";
+import type { ChangePlan } from "@/types/deployment.ts";
+import type { DeploymentRecord } from "@/types/deployment.ts";
+import type { AppUsage, PodUsageReport, ResourceUse } from "@/types/monitoring.ts";
+import type { AppStatus } from "@/types/monitoring.ts";
 
 const MI = 1024 * 1024;
 

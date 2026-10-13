@@ -1,28 +1,20 @@
-// Turns results into the text shown in the chat. Every function here is pure:
-// it takes data and returns text, so the wording is easy to test and to change.
-//
-// Numbers always go through formatCpu / formatMemory, so the user never sees a raw
-// value such as 128974848, and anything unknown is written as unknown, never as 0.
-
-import type { ChangePlan } from "../services/deploymentService.ts";
-import { formatDeploymentId } from "../services/historyStore.ts";
-import type { DeploymentRecord } from "../services/historyStore.ts";
-import type { AppUsage, MetricsUnavailable, NodesReport, PodUsageReport, ResourceUse } from "../services/metricsService.ts";
-import type { AppStatus } from "../services/statusService.ts";
-import { formatCpu, formatMemory } from "../services/units.ts";
-import type { KnownNames } from "./intentParser.ts";
+import { TERMINATION_MEANINGS } from "@/constants/agent.ts";
+import { formatDeploymentId } from "@/services/historyStore.ts";
+import { formatCpu, formatMemory } from "@/services/units.ts";
+import type { KnownNames } from "@/types/agent.ts";
+import type { ChangePlan, DeploymentRecord } from "@/types/deployment.ts";
+import type {
+  AppStatus,
+  AppUsage,
+  MetricsUnavailable,
+  NodesReport,
+  PodUsageReport,
+  ResourceUse,
+} from "@/types/monitoring.ts";
 
 function plural(count: number, word: string): string {
   return `${count} ${word}${count === 1 ? "" : "s"}`;
 }
-
-// What Kubernetes' short termination reasons mean.
-const TERMINATION_MEANINGS: Record<string, string> = {
-  OOMKilled: "killed for using more memory than its limit",
-  Error: "the app exited with an error",
-  Completed: "the app exited by itself",
-  ContainerCannotRun: "the container could not be started",
-};
 
 // ---- Health ----
 

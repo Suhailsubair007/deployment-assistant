@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { loadConfig } from "../src/config.ts";
-import { ClusterUnreachableError, InvalidRequestError, MetricsUnavailableError, NotFoundError } from "../src/errors.ts";
-import { FailureExplainer } from "../src/services/failureExplainer.ts";
-import { HistoryStore } from "../src/services/historyStore.ts";
-import { MetricsService } from "../src/services/metricsService.ts";
-import { StatusService } from "../src/services/statusService.ts";
+import { loadConfig } from "@/config.ts";
+import { ClusterUnreachableError, InvalidRequestError, MetricsUnavailableError, NotFoundError } from "@/errors.ts";
+import { FailureExplainer } from "@/services/failureExplainer.ts";
+import { HistoryStore } from "@/services/historyStore.ts";
+import { MetricsService } from "@/services/metricsService.ts";
+import { StatusService } from "@/services/statusService.ts";
 import { FakeGateway } from "./helpers/fakeGateway.ts";
 
 const NOW = new Date("2026-10-12T12:00:00Z");
