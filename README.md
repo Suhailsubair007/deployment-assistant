@@ -17,7 +17,7 @@ It runs against a local [kind](https://kind.sigs.k8s.io/) cluster and against AW
 | kubectl | 1.37 | Setup scripts only. The app itself never runs `kubectl` |
 | Terraform, AWS CLI | 1.16, 2.x | Only for the EKS cluster |
 
-**Why Node.js 24 and TypeScript.** Node.js is what I work in every day, and Kubernetes has an official client library for it. TypeScript catches wrong field names in Kubernetes objects before the code runs. Node 24 runs `.ts` files directly, so the server has no build step. Node's built-in test runner and built-in SQLite keep the server to three runtime dependencies: `express`, `@kubernetes/client-node` and `yaml`.
+**Why Node.js 24 and TypeScript.** Node.js is what I work in every day, and Kubernetes has an official client library for it. TypeScript catches wrong field names in Kubernetes objects before the code runs. Node 24 runs `.ts` files directly, so the server has no build step. Node's built-in test runner and built-in SQLite keep the server's own runtime dependencies to three: `express`, `@kubernetes/client-node` and `yaml`. Three more, `@langchain/langgraph`, `@langchain/core` and `openai`, are used only when OpenAI reads the chat messages (see [Understanding messages](#understanding-messages-rules-or-openai)).
 
 **The page** is a Next.js app (React, Tailwind and shadcn/ui components) in [frontend/](frontend/). `npm run build` turns it into plain HTML, CSS and JavaScript files once, and the same Express server serves them. So there is still one process and one address, and no Next.js server runs.
 
@@ -61,6 +61,36 @@ Type your name in the top right corner first; it is stored with each deployment.
 10. `show my last 5 deployments`
 
 `help` lists everything the assistant understands. `deploy it` shows how it asks for missing details instead of guessing.
+
+## Understanding messages: rules or OpenAI
+
+The assistant can read chat messages in two ways. It picks one when it starts, and says which one in the terminal and at the end of the `help` reply.
+
+| | Rules (the default) | OpenAI |
+|---|---|---|
+| Turned on by | nothing | `OPENAI_API_KEY` in `.env` |
+| Understands | the phrasings above and close variants | casual language, for example `push v2 out to staging` or `bump staging up to five pods` |
+| Needs | nothing | network access and an OpenAI API key |
+
+**The app works without a key.** It then prints `Messages are read by built-in rules. The LLM is not configured (OPENAI_API_KEY is not set).`
+
+**To turn OpenAI on**, add the key to `.env` and start the app again. `.env` is not committed.
+
+```bash
+OPENAI_API_KEY=sk-...
+```
+
+The model name, the timeout for one call and the pause after a failure are in [config/app.config.yaml](config/app.config.yaml) under `llm`.
+
+**If OpenAI cannot be used** (wrong key, no credit, timeout, network down), the rules read the message instead and the reply says so: `Note: OpenAI rejected the API key. I read this message with my built-in rules instead.` The terminal shows the reason with OpenAI's status code. OpenAI is tried again after one minute.
+
+**What does not change.** OpenAI only reads the message. It picks one entry from a fixed list (deploy, scale, roll back, health and so on) and fills in details. The server checks every value, asks for what is missing, and every change still needs **Confirm**. [DESIGN.md](DESIGN.md) section 10 has the details.
+
+**Try both modes.**
+
+1. *Rules.* Start without a key and type `push v2 out to staging`. The rules do not know "push", so this is not read as a deploy.
+2. *OpenAI.* Add your key, start again and type the same message. The reply is the deploy summary with Confirm and Cancel. Other things to try: `is everything alright in prod?`, `undo the last release on staging`, `bump staging up to five pods`, and `ship v2` followed by `the staging one please`.
+3. *Fallback.* Set `OPENAI_API_KEY=sk-wrong`, start again and type `how are the nodes doing?`. You get the answer and the note above.
 
 ## Seeing it handle problems
 
@@ -127,14 +157,16 @@ npm run build        # builds the page; this also type-checks it
 
 The tests replace the cluster with an in-memory fake ([tests/helpers/fakeGateway.ts](tests/helpers/fakeGateway.ts)). They cover intent parsing, unit conversion, health evaluation, deploy, roll back, scaling, the one-change-at-a-time lock and every failure message.
 
+The OpenAI path is tested without a key and without the network: the tests give the workflow a pretend model answer, and replace the network call under the real OpenAI library. They cover the checks on what the model says, every way a call can fail, and the fallback to the rules.
+
 The page's logic that needs no browser is tested too ([frontend/tests/](frontend/tests/)): the API call and its error sentences, how a reply is cut into lines and tables, the Confirm and Cancel notes, the pod counts, the steps of a rollout, and the mood of Buddy (the face in the chat). The React components themselves have no automated tests; they were checked by hand in the browser.
 
 ## Settings
 
 | File | What it holds |
 |---|---|
-| [config/app.config.yaml](config/app.config.yaml) | Environment names, DEGRADED thresholds (with per-environment overrides), timeouts, and the app's replicas, port, requests and limits |
-| `.env` (copy of [.env.example](.env.example)) | Port, kubeconfig context, database file, image registry. Nothing in it is secret |
+| [config/app.config.yaml](config/app.config.yaml) | Environment names, DEGRADED thresholds (with per-environment overrides), timeouts, the OpenAI model, and the app's replicas, port, requests and limits |
+| `.env` (copy of [.env.example](.env.example)) | Port, kubeconfig context, database file, image registry, and the optional `OPENAI_API_KEY`. The key is the only secret; `.env` is not committed |
 | [k8s/templates/](k8s/templates/) | The Deployment and Service the assistant creates, with readiness and liveness probes on `/health` |
 
 ## Where things are
@@ -142,7 +174,7 @@ The page's logic that needs no browser is tested too ([frontend/tests/](frontend
 ```
 frontend/        the chat page (Next.js with shadcn/ui; built into frontend/out)
 src/api/         web routes and error messages
-src/agent/       understands messages, keeps one conversation per tab, holds the Confirm step
+src/agent/       understands messages (rules, or OpenAI through LangGraph), keeps one conversation per tab, holds the Confirm step
 src/services/    deploy, roll back, scale, health, CPU and memory, history
 src/cluster/     the only code that uses the Kubernetes library
 config/          thresholds, timeouts, environments
@@ -155,6 +187,7 @@ tests/           unit tests
 ## What is not done
 
 - **`terraform plan` and `terraform apply` have not been run against AWS yet.** The Terraform code passes `fmt`, `validate` and `tflint`, and the assistant's Kubernetes permissions were tested on kind, but nothing has been created in an AWS account so far.
+- **OpenAI mode is checked by hand only.** With a real key it read a dozen casual messages correctly. The automated tests use pretend model answers, so how well the real model reads messages in general is not measured.
 - **Bonus features** from the test are not built: automatic rollback, charts, autoscaler status, fix suggestions, a logs command, login, Helm support, and running the assistant inside the cluster.
 - **No login.** The name in the top right corner is typed by the user and stored as "requested by"; it does not prove who they are.
 - **One backend instance.** Conversations and rollout progress are kept in memory, and the one-change-at-a-time lock is a local SQLite file.

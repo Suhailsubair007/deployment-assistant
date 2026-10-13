@@ -243,7 +243,8 @@ export function formatProtectedWarning(environment: string): string {
 
 // ---- Help ----
 
-export function formatHelp(known: KnownNames): string {
+/** @param howRead how messages are read (rules or OpenAI); added as the last line when given */
+export function formatHelp(known: KnownNames, howRead?: string): string {
   const app = known.apps[0] ?? "my-app";
   const first = known.environments[0] ?? "staging";
   const last = known.environments.at(-1) ?? first;
@@ -259,5 +260,6 @@ export function formatHelp(known: KnownNames): string {
     `- full status of ${last}`,
     "- show my last 5 deployments",
     `Environments: ${known.environments.join(", ")}. Apps: ${known.apps.join(", ")}.`,
+    ...(howRead === undefined ? [] : [howRead]),
   ].join("\n");
 }

@@ -1,5 +1,8 @@
-// The agent: reads a chat message, works out what is wanted, asks when something is
-// missing, and answers. It never touches the cluster itself; it calls the services.
+// The agent: has each chat message read, works out what is wanted, asks when something
+// is missing, and answers. It never touches the cluster itself; it calls the services.
+//
+// Reading a message is done by a MessageReader: the built-in rules, or OpenAI when an
+// API key is set. Whichever reads it, everything after that is the same code.
 //
 // Safety rule: a message can only ever create a *pending* change. The change is
 // carried out by confirm(), which the web layer calls when the Confirm button is clicked.
@@ -12,8 +15,9 @@ import type { ChangePlan, DeploymentService } from "../services/deploymentServic
 import { formatDeploymentId } from "../services/historyStore.ts";
 import type { HistoryFilter, HistoryStore } from "../services/historyStore.ts";
 import type { StatusService } from "../services/statusService.ts";
-import { parseMessage } from "./intentParser.ts";
 import type { KnownNames, ParsedMessage } from "./intentParser.ts";
+import { createRuleReader } from "./messageReader.ts";
+import type { MessageReader } from "./messageReader.ts";
 import {
   formatFullStatus,
   formatHealth,
@@ -41,6 +45,8 @@ export interface AgentDeps {
   statuses: StatusService;
   history: HistoryStore;
   sessions: SessionStore;
+  /** How messages are read. Left out, the built-in rules read them. */
+  reader?: MessageReader;
   /** The current time in milliseconds. Tests replace this. */
   now?: () => number;
 }
@@ -61,6 +67,7 @@ export class Agent {
   private readonly statuses: StatusService;
   private readonly history: HistoryStore;
   private readonly sessions: SessionStore;
+  private readonly reader: MessageReader;
   private readonly now: () => number;
   private readonly known: KnownNames;
 
@@ -72,6 +79,7 @@ export class Agent {
     this.sessions = deps.sessions;
     this.now = deps.now ?? Date.now;
     this.known = { environments: Object.keys(deps.config.environments), apps: Object.keys(deps.config.apps) };
+    this.reader = deps.reader ?? createRuleReader(this.known);
   }
 
   // ---- Entry points, called by the web layer ----
@@ -80,7 +88,14 @@ export class Agent {
   async handleMessage(sessionId: string, text: string, user: string): Promise<AgentReply> {
     const session = this.sessions.get(sessionId);
     this.sessions.addMessage(session, { role: "user", text, at: new Date(this.now()) });
-    const reply = await this.asReply(() => this.respond(session, text, user));
+    // The reader is told about an open question, so it can read "the staging one" as its answer.
+    const reading = await this.reader.read(text, session.awaiting);
+    const reply = await this.asReply(() => this.respond(session, reading.parsed, text, user));
+    if (reading.fallbackNote !== undefined) {
+      // The rules read this message because OpenAI could not. Say so, since the rules
+      // understand fewer phrasings and the user should know why.
+      reply.text += `\nNote: ${reading.fallbackNote}`;
+    }
     this.record(session, reply);
     return reply;
   }
@@ -129,10 +144,10 @@ export class Agent {
 
   // ---- Working out the answer ----
 
-  private async respond(session: Session, text: string, user: string): Promise<AgentReply> {
-    const request = this.combine(session, parseMessage(text, this.known), text);
+  private async respond(session: Session, parsed: ParsedMessage, text: string, user: string): Promise<AgentReply> {
+    const request = this.combine(session, parsed, text);
     if (request === null || request.intent === null) {
-      return { text: `I didn't understand that.\n${formatHelp(this.known)}` };
+      return { text: `I didn't understand that.\n${formatHelp(this.known, this.reader.description)}` };
     }
 
     if (request.unknownEnvironment !== undefined && request.environment === undefined) {
@@ -152,7 +167,7 @@ export class Agent {
 
     switch (request.intent) {
       case "help":
-        return { text: formatHelp(this.known) };
+        return { text: formatHelp(this.known, this.reader.description) };
 
       case "nodes":
         session.awaiting = undefined;
@@ -291,6 +306,11 @@ export class Agent {
 
     const lastQuestion = session.lastQuestion;
     if (lastQuestion !== undefined && (details.environment !== undefined || details.unknownEnvironment !== undefined || details.app !== undefined)) {
+      if (details.unknownEnvironment !== undefined) {
+        // "what about qa?": the earlier environment must not answer for one that does not exist.
+        const { environment: _earlier, ...question } = lastQuestion;
+        return { ...question, ...details };
+      }
       return { ...lastQuestion, ...details };
     }
     return null;

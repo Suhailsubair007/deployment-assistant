@@ -28,6 +28,13 @@ timeouts:
   healthRequestMs: 3000 # give up on one GET /health call after this long
   pollIntervalMs: 2000 # how often rollout status is read
 
+# Reading chat messages with OpenAI. Used only when OPENAI_API_KEY is set (see
+# .env.example). Without a key the built-in rules read every message.
+llm:
+  model: gpt-4.1-mini # any OpenAI chat model that supports function calling
+  requestTimeoutMs: 8000 # give up on one OpenAI call after this long and use the rules
+  retryAfterSeconds: 60 # after a failed call, use the rules for this long before trying OpenAI again
+
 # When an app is reported as DEGRADED.
 thresholds:
   default:

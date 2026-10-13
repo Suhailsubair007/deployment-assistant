@@ -37,3 +37,14 @@ export class InvalidRequestError extends AppError {}
 
 /** Another change to the same environment is still running. */
 export class DeployInProgressError extends AppError {}
+
+/** OpenAI could not read a chat message: the call failed, or its answer was not usable. */
+export class ModelUnavailableError extends AppError {
+  /** The technical reason, for the server log only. */
+  detail: string;
+
+  constructor(message: string, detail = "") {
+    super(message);
+    this.detail = detail;
+  }
+}

@@ -101,3 +101,32 @@ test("an override for an environment that does not exist is rejected", () => {
     new ConfigError('Config error: thresholds.overrides names "qa", which is not an environment.'),
   );
 });
+
+// ---- The llm section ----
+
+test("the shipped config file names the OpenAI model, its timeout and the pause after a failure", () => {
+  const config = loadConfig(SHIPPED_CONFIG);
+
+  assert.deepEqual(config.llm, { model: "gpt-4.1-mini", requestTimeoutMs: 8000, retryAfterSeconds: 60 });
+});
+
+test("a config file without an llm section still loads, with the default llm settings", () => {
+  const config = loadConfig(writeTempConfig(VALID_CONFIG));
+
+  assert.deepEqual(config.llm, { model: "gpt-4.1-mini", requestTimeoutMs: 8000, retryAfterSeconds: 60 });
+});
+
+test("an llm section may set only some values; the others keep their defaults", () => {
+  const config = loadConfig(writeTempConfig(`${VALID_CONFIG}\nllm: { model: some-other-model }\n`));
+
+  assert.deepEqual(config.llm, { model: "some-other-model", requestTimeoutMs: 8000, retryAfterSeconds: 60 });
+});
+
+test("an llm timeout that is not a positive number is rejected by name", () => {
+  const broken = `${VALID_CONFIG}\nllm: { requestTimeoutMs: soon }\n`;
+
+  assert.throws(
+    () => loadConfig(writeTempConfig(broken)),
+    new ConfigError("Config error: llm.requestTimeoutMs must be a positive number."),
+  );
+});

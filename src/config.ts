@@ -39,11 +39,21 @@ export interface Timeouts {
   pollIntervalMs: number;
 }
 
+/** Settings for reading chat messages with OpenAI. Used only when an API key is set. */
+export interface LlmSettings {
+  model: string;
+  /** Give up on one OpenAI call after this long. */
+  requestTimeoutMs: number;
+  /** After a failed call, the built-in rules read every message for this long. */
+  retryAfterSeconds: number;
+}
+
 export interface AppConfig {
   environments: Record<string, EnvironmentConfig>;
   apps: Record<string, AppDefaults>;
   timeouts: Timeouts;
   thresholds: { default: Thresholds; overrides: Record<string, Partial<Thresholds>> };
+  llm: LlmSettings;
 }
 
 /** A problem with the config file, written so the person editing it can fix it. */
@@ -181,6 +191,24 @@ function readThresholdOverrides(
   return overrides;
 }
 
+// Used for any llm setting the config file leaves out, so a file written before
+// the section existed still loads.
+const LLM_DEFAULTS: LlmSettings = { model: "gpt-4.1-mini", requestTimeoutMs: 8000, retryAfterSeconds: 60 };
+
+function readLlm(section: Section): LlmSettings {
+  return {
+    model: section.model === undefined ? LLM_DEFAULTS.model : readText(section, "model", "llm"),
+    requestTimeoutMs:
+      section.requestTimeoutMs === undefined
+        ? LLM_DEFAULTS.requestTimeoutMs
+        : readNumber(section, "requestTimeoutMs", "llm"),
+    retryAfterSeconds:
+      section.retryAfterSeconds === undefined
+        ? LLM_DEFAULTS.retryAfterSeconds
+        : readNumber(section, "retryAfterSeconds", "llm"),
+  };
+}
+
 /** Reads and checks the config file. Throws ConfigError with a message the editor can act on. */
 export function loadConfig(path: string): AppConfig {
   if (!existsSync(path)) {
@@ -202,6 +230,8 @@ export function loadConfig(path: string): AppConfig {
         Object.keys(environments),
       ),
     },
+    // The llm section is optional.
+    llm: readLlm(asSection(root.llm ?? {}, "llm")),
   };
 }
 

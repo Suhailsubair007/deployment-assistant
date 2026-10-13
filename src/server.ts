@@ -8,6 +8,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 
 import { Agent } from "./agent/agent.ts";
+import { createMessageReader } from "./agent/messageReader.ts";
 import { SessionStore } from "./agent/sessionStore.ts";
 import { createApp } from "./api/routes.ts";
 import { KubeGateway } from "./cluster/kubeGateway.ts";
@@ -46,7 +47,14 @@ function start(): void {
     explainer,
     imageRegistry: process.env.IMAGE_REGISTRY || undefined,
   });
-  const agent = new Agent({ config, deployments, statuses, history, sessions });
+  // With OPENAI_API_KEY set, OpenAI reads the chat messages. Without it, the built-in
+  // rules do, and the app works exactly as it does with no LLM at all.
+  const reader = createMessageReader({
+    known: { environments: Object.keys(config.environments), apps: Object.keys(config.apps) },
+    apiKey: process.env.OPENAI_API_KEY,
+    llm: config.llm,
+  });
+  const agent = new Agent({ config, deployments, statuses, history, sessions, reader });
 
   const app = createApp({
     agent,
@@ -60,7 +68,7 @@ function start(): void {
     console.log(`Deployment Assistant is running at http://${HOST}:${port}`);
     console.log(`Kubernetes context: ${gateway.contextName()}`);
     console.log(`Environments: ${Object.keys(config.environments).join(", ")}`);
-    console.log("Message parsing: rule-based. No LLM is used, so no API key is needed.");
+    console.log(reader.description);
     if (!existsSync(join(PAGE_FOLDER, "index.html"))) {
       console.log('The page is not built yet. Run "npm run build", then reload the browser.');
     }

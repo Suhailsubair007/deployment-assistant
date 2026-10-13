@@ -327,3 +327,9 @@ test("help lists an example for each thing the agent can do, with the known name
   }
   assert.ok(text.includes("Environments: staging, prod"), text);
 });
+
+test("help ends with how messages are read, when that is given", () => {
+  const text = formatHelp({ environments: ["staging", "prod"], apps: ["sample-app"] }, "Messages are read by built-in rules.");
+
+  assert.equal(text.split("\n").at(-1), "Messages are read by built-in rules.");
+});

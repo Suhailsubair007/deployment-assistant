@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { Agent } from "../src/agent/agent.ts";
+import type { ParsedMessage } from "../src/agent/intentParser.ts";
+import type { MessageReader, Reading } from "../src/agent/messageReader.ts";
 import { SessionStore } from "../src/agent/sessionStore.ts";
 import { loadConfig } from "../src/config.ts";
 import { ClusterUnreachableError, MetricsUnavailableError } from "../src/errors.ts";
@@ -19,8 +21,10 @@ const DEPLOY_V2 = "deploy sample-app version v2 to staging";
 /**
  * The real agent and services on top of a pretend cluster.
  * sample-app v1 runs in staging with 3 pods; prod is empty.
+ *
+ * @param reader how messages are read; left out, the agent uses the built-in rules
  */
-async function setup() {
+async function setup(reader?: MessageReader) {
   const gateway = new FakeGateway();
   gateway.seed("staging", "sample-app", "sample-app:v1", 3);
   for (const pod of await gateway.listPods("staging", "sample-app")) {
@@ -39,6 +43,7 @@ async function setup() {
     deployments: new DeploymentService({ gateway, history, operations, config, explainer, sleep: async () => {} }),
     statuses: new StatusService({ gateway, history, config, explainer, metrics: new MetricsService(gateway) }),
     now: () => nowMs,
+    reader,
   });
   return {
     agent,
@@ -345,4 +350,133 @@ test("each message and reply is recorded in the tab's session", async () => {
   assert.equal(messages[1]?.role, "agent");
   assert.equal(messages[1]?.action?.id, reply.action?.id);
   assert.equal(sessions.get("tab-2").messages.length, 0);
+});
+
+// ---- Messages read by OpenAI instead of the rules ----
+
+/** Stands in for the OpenAI reader: gives the listed readings in order and records what it was asked. */
+function scriptedReader(readings: Reading[]) {
+  const asked: { text: string; awaiting: ParsedMessage | undefined }[] = [];
+  const reader: MessageReader = {
+    description: "Messages are read by a test reader.",
+    read: async (text, awaiting) => {
+      asked.push({ text, awaiting });
+      return readings.shift() ?? { parsed: { intent: null } };
+    },
+  };
+  return { reader, asked };
+}
+
+const FALLBACK_NOTE = "OpenAI rejected the API key. I read this message with my built-in rules instead.";
+
+test("a message read by the model gets the same summary and still changes nothing without Confirm", async () => {
+  const { reader } = scriptedReader([{ parsed: { intent: "deploy", version: "v2", environment: "staging" } }]);
+  const { say, gateway } = await setup(reader);
+
+  const reply = await say("push v2 out to staging");
+
+  assert.equal(
+    reply.text,
+    'I\'ll update deployment "sample-app" in namespace "staging" to image sample-app:v2 (3 replicas). It runs sample-app:v1 now.',
+  );
+  assert.ok(reply.action, "the reply should offer Confirm and Cancel");
+  assert.deepEqual(gateway.writes, []);
+});
+
+test("a value the model got wrong is refused by the same checks as a typed one", async () => {
+  const { reader } = scriptedReader([{ parsed: { intent: "scale", environment: "staging", replicas: 500 } }]);
+  const { say, gateway } = await setup(reader);
+
+  const reply = await say("make staging huge");
+
+  assert.equal(reply.text, "sample-app can have at most 10 replicas (maxReplicas in the config file). You asked for 500.");
+  assert.equal(reply.action, undefined);
+  assert.deepEqual(gateway.writes, []);
+});
+
+test("a change read by the model never borrows the environment from earlier messages either", async () => {
+  const { reader } = scriptedReader([
+    { parsed: { intent: "health", environment: "prod" } },
+    { parsed: { intent: "rollback" } },
+  ]);
+  const { say } = await setup(reader);
+  await say("how is prod doing?");
+
+  const reply = await say("undo that last release");
+
+  assert.equal(reply.text, "Roll back sample-app in which environment: staging or prod?");
+  assert.equal(reply.action, undefined);
+});
+
+test("the reader is given the open question, and its answer completes the request", async () => {
+  const { reader, asked } = scriptedReader([
+    { parsed: { intent: "deploy", version: "v2" } },
+    { parsed: { intent: null, environment: "staging" } },
+  ]);
+  const { say } = await setup(reader);
+
+  const question = await say("ship v2");
+  const summary = await say("the staging one please");
+
+  assert.equal(question.text, "Deploy sample-app version v2 to which environment: staging or prod?");
+  assert.equal(asked[0].awaiting, undefined);
+  assert.deepEqual(asked[1].awaiting, { intent: "deploy", version: "v2", app: "sample-app" });
+  assert.ok(summary.action);
+  assert.ok(summary.text.includes("to image sample-app:v2"), summary.text);
+});
+
+test("a follow-up that names an environment that does not exist is not answered for the old one", async () => {
+  const { reader } = scriptedReader([
+    { parsed: { intent: "health", environment: "staging" } },
+    { parsed: { intent: null, unknownEnvironment: "qa" } },
+  ]);
+  const { say } = await setup(reader);
+  await say("is staging healthy?");
+
+  const reply = await say("and what about qa?");
+
+  assert.equal(reply.text, 'There is no environment called "qa". I know: staging, prod. Which one do you mean?');
+});
+
+test("every reply to a message the rules read for OpenAI says so; other replies do not", async () => {
+  const failed: Reading = { parsed: { intent: "nodes" }, fallbackNote: FALLBACK_NOTE };
+  const { reader } = scriptedReader([failed, failed, { parsed: { intent: "nodes" } }]);
+  const { say } = await setup(reader);
+  const nodes = "1 node, all Ready\nnode-1: CPU 41%, memory 63% | Ready";
+
+  assert.equal((await say("how are the nodes?")).text, `${nodes}\nNote: ${FALLBACK_NOTE}`);
+  assert.equal((await say("how are the nodes?")).text, `${nodes}\nNote: ${FALLBACK_NOTE}`);
+  assert.equal((await say("how are the nodes?")).text, nodes, "OpenAI read this one: nothing to add");
+});
+
+test("the note is added to a refusal too, and is kept in the conversation", async () => {
+  const { reader } = scriptedReader([
+    { parsed: { intent: "deploy", version: "latest", environment: "staging" }, fallbackNote: FALLBACK_NOTE },
+  ]);
+  const { say, sessions } = await setup(reader);
+
+  const reply = await say("deploy latest to staging");
+
+  assert.ok(reply.text.startsWith('I don\'t deploy the "latest" tag'), reply.text);
+  assert.ok(reply.text.endsWith(`\nNote: ${FALLBACK_NOTE}`), reply.text);
+  assert.equal(sessions.get(TAB).messages.at(-1)?.text, reply.text);
+});
+
+test("help says how messages are read: by the rules when no LLM is configured", async () => {
+  const { say } = await setup();
+
+  const reply = await say("help");
+
+  assert.ok(
+    reply.text.endsWith("\nMessages are read by built-in rules. The LLM is not configured (OPENAI_API_KEY is not set)."),
+    reply.text,
+  );
+});
+
+test("help and the did-not-understand reply name the reader that is in use", async () => {
+  const { reader } = scriptedReader([{ parsed: { intent: "help" } }, { parsed: { intent: null } }]);
+  const { say } = await setup(reader);
+
+  assert.ok((await say("what can you do")).text.endsWith("\nMessages are read by a test reader."));
+  assert.ok((await say("tell me a joke")).text.endsWith("\nMessages are read by a test reader."));
 });

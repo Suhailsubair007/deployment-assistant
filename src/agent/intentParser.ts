@@ -60,12 +60,12 @@ const ENVIRONMENT_ALIASES: Record<string, string> = { production: "prod", stage:
 // Words that can follow "to", "in", "of" at the end of a sentence without being an environment.
 const NOT_AN_ENVIRONMENT = new Set(["it", "them", "there", "here", "total", "use", "now", "this", "that"]);
 
-function escapeForRegex(text: string): string {
+export function escapeForRegex(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 /** True when `word` appears as a whole word. Dashes count as part of a word, as in "sample-app". */
-function hasWord(lowerText: string, word: string): boolean {
+export function hasWord(lowerText: string, word: string): boolean {
   return new RegExp(`(^|[^a-z0-9-])${escapeForRegex(word)}($|[^a-z0-9-])`).test(lowerText);
 }
 
@@ -78,7 +78,8 @@ function findIntent(lowerText: string): IntentName | null {
   return null;
 }
 
-function findEnvironment(lowerText: string, environments: string[]): string | undefined {
+/** The known environment named in the text, by its name or an alias such as "production". */
+export function findEnvironment(lowerText: string, environments: string[]): string | undefined {
   for (const environment of environments) {
     if (hasWord(lowerText, environment)) {
       return environment;
