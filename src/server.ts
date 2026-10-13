@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 
 import { Agent } from "@/agent/agent.ts";
+import { liveNames } from "@/agent/knownNames.ts";
 import { createMessageReader } from "@/agent/messageReader.ts";
 import { SessionStore } from "@/agent/sessionStore.ts";
 import { createApp } from "@/api/routes.ts";
@@ -13,6 +14,7 @@ import { FailureExplainer } from "@/services/failureExplainer.ts";
 import { HistoryStore } from "@/services/historyStore.ts";
 import { MetricsService } from "@/services/metricsService.ts";
 import { OperationStore } from "@/services/operationStore.ts";
+import { ServiceRegistry } from "@/services/serviceRegistry.ts";
 import { StatusService } from "@/services/statusService.ts";
 import { formatStartupBanner, formatStartupError } from "@/startupBanner.ts";
 
@@ -24,27 +26,38 @@ function start(): void {
   const gateway = new KubeGateway(process.env.KUBE_CONTEXT || undefined);
 
   // The history is kept per cluster, so pointing the app at another cluster does not mix them up.
-  const history = new HistoryStore(process.env.DB_PATH || DEFAULT_DB_PATH, gateway.clusterName());
+  const dbPath = process.env.DB_PATH || DEFAULT_DB_PATH;
+  const history = new HistoryStore(dbPath, gateway.clusterName());
   const interrupted = history.recoverInterrupted();
+  // The services created from the chat live in the same file, also per cluster.
+  const registry = new ServiceRegistry({ path: dbPath, cluster: gateway.clusterName(), config });
 
   const operations = new OperationStore();
   const sessions = new SessionStore();
   const explainer = new FailureExplainer(gateway);
-  const statuses = new StatusService({ gateway, history, config, explainer, metrics: new MetricsService(gateway) });
+  const statuses = new StatusService({
+    gateway,
+    history,
+    config,
+    registry,
+    explainer,
+    metrics: new MetricsService(gateway),
+  });
   const deployments = new DeploymentService({
     gateway,
     history,
     operations,
     config,
+    registry,
     explainer,
     imageRegistry: process.env.IMAGE_REGISTRY || undefined,
   });
   const reader = createMessageReader({
-    known: { environments: Object.keys(config.environments), apps: Object.keys(config.apps) },
+    known: liveNames(config, registry),
     apiKey: process.env.OPENAI_API_KEY,
     llm: config.llm,
   });
-  const agent = new Agent({ config, deployments, statuses, history, sessions, reader });
+  const agent = new Agent({ config, deployments, statuses, history, sessions, registry, reader });
 
   const app = createApp({
     agent,

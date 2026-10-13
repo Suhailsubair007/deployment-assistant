@@ -1,8 +1,9 @@
 import type { FailureExplainer } from "@/services/failureExplainer.ts";
 import type { HistoryStore } from "@/services/historyStore.ts";
 import type { OperationStore } from "@/services/operationStore.ts";
+import type { ServiceRegistry } from "@/services/serviceRegistry.ts";
 import type { ClusterGateway } from "@/types/cluster.ts";
-import type { AppConfig, AppDefaults, ResourceAmounts } from "@/types/config.ts";
+import type { AppConfig, ResourceAmounts } from "@/types/config.ts";
 import type { EnvVar } from "@/types/service.ts";
 
 /** A change that has been worked out but not carried out yet. Shown to the user for confirmation. */
@@ -33,6 +34,8 @@ export interface DeploymentServiceDeps {
   history: HistoryStore;
   operations: OperationStore;
   config: AppConfig;
+  /** Where each service's settings come from. */
+  registry: ServiceRegistry;
   explainer: FailureExplainer;
   /** Put in front of image names, for example an ECR registry. Leave empty for local images. */
   imageRegistry?: string;
@@ -97,6 +100,9 @@ export interface DeployParams {
 
 export type OperationState = "running" | "succeeded" | "failed";
 
+/** The parts of a change that builds an image, in the order they happen. */
+export type OperationStage = "repository" | "build" | "publish" | "pods";
+
 export interface Operation {
   id: string;
   /** The history row this operation belongs to. */
@@ -108,13 +114,10 @@ export interface Operation {
   steps: string[];
   /** The final message, once the operation is no longer running. */
   message: string;
+  /** Set for a change that builds an image: every stage it goes through. Left out, there is only the rollout. */
+  stages?: OperationStage[];
+  /** The stage that is running now, or the one that failed. */
+  stage?: OperationStage;
 }
 
 export type NewOperation = Pick<Operation, "deploymentId" | "environment" | "app">;
-
-export interface Target {
-  /** The Kubernetes namespace of the environment. */
-  namespace: string;
-  /** The app's settings from the config file. */
-  defaults: AppDefaults;
-}

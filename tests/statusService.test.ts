@@ -6,7 +6,9 @@ import { ClusterUnreachableError, InvalidRequestError, MetricsUnavailableError, 
 import { FailureExplainer } from "@/services/failureExplainer.ts";
 import { HistoryStore } from "@/services/historyStore.ts";
 import { MetricsService } from "@/services/metricsService.ts";
+import { ServiceRegistry } from "@/services/serviceRegistry.ts";
 import { StatusService } from "@/services/statusService.ts";
+import type { ServiceSpec } from "@/types/service.ts";
 import { FakeGateway } from "./helpers/fakeGateway.ts";
 
 const NOW = new Date("2026-10-12T12:00:00Z");
@@ -22,15 +24,17 @@ async function setup() {
   }
   const config = loadConfig("config/app.config.yaml");
   const history = new HistoryStore(":memory:", "fake-cluster");
+  const registry = new ServiceRegistry({ path: ":memory:", cluster: "fake-cluster", config });
   const service = new StatusService({
     gateway,
     history,
     config,
+    registry,
     metrics: new MetricsService(gateway),
     explainer: new FailureExplainer(gateway),
     now: () => NOW,
   });
-  return { gateway, history, config, service, podNames };
+  return { gateway, history, config, registry, service, podNames };
 }
 
 test("a healthy app is reported HEALTHY together with the facts behind it", async () => {
@@ -229,4 +233,43 @@ test("nodes are reported with their usage", async () => {
   const report = await service.getNodes();
 
   assert.equal(report.nodes[0]?.cpuPercent, 41);
+});
+
+// ---- Services saved in the registry ----
+
+const ORDERS_API: ServiceSpec = {
+  name: "orders-api",
+  environment: "staging",
+  imageRepository: "orders-api",
+  folder: null,
+  port: 3000,
+  healthPath: "/healthz",
+  replicas: 2,
+  maxReplicas: 4,
+  resources: { requests: { cpu: "100m", memory: "128Mi" }, limits: { cpu: "500m", memory: "256Mi" } },
+  env: [],
+  lastVersion: 0,
+};
+
+test("the health call goes to the service's own health path", async () => {
+  const { service, gateway, registry } = await setup();
+  registry.save(ORDERS_API);
+  gateway.seed("staging", "orders-api", "orders-api:v1", 2);
+
+  await service.getStatus("staging", "orders-api");
+  await service.getStatus("staging", "sample-app");
+
+  assert.deepEqual(gateway.healthCalls, ["staging orders-api:80 /healthz", "staging sample-app:80 /health"]);
+});
+
+test("the panel lists a saved service in its own environment only", async () => {
+  const { service, registry } = await setup();
+  registry.save(ORDERS_API);
+
+  const summaries = await service.getSummaries();
+
+  assert.deepEqual(
+    summaries.map((summary) => `${summary.environment}/${summary.app}`),
+    ["staging/sample-app", "staging/orders-api", "prod/sample-app"],
+  );
 });

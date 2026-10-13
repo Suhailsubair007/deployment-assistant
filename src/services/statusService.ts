@@ -6,7 +6,8 @@ import type { FailureExplainer } from "@/services/failureExplainer.ts";
 import { evaluateHealth, findProblemPods } from "@/services/healthEvaluator.ts";
 import type { HistoryStore } from "@/services/historyStore.ts";
 import type { MetricsService } from "@/services/metricsService.ts";
-import { findDeployment, resolveTarget } from "@/services/target.ts";
+import type { ServiceRegistry } from "@/services/serviceRegistry.ts";
+import { findDeployment } from "@/services/target.ts";
 import type { ClusterGateway, PodInfo } from "@/types/cluster.ts";
 import type { AppConfig } from "@/types/config.ts";
 import type {
@@ -25,6 +26,7 @@ export class StatusService {
   private readonly explainer: FailureExplainer;
   private readonly history: HistoryStore;
   private readonly config: AppConfig;
+  private readonly registry: ServiceRegistry;
   private readonly now: () => Date;
 
   constructor(deps: StatusServiceDeps) {
@@ -33,12 +35,13 @@ export class StatusService {
     this.explainer = deps.explainer;
     this.history = deps.history;
     this.config = deps.config;
+    this.registry = deps.registry;
     this.now = deps.now ?? (() => new Date());
   }
 
   /** Returns null when the app is not deployed in that environment. */
   async getStatus(environment: string, app: string): Promise<AppStatus | null> {
-    const { namespace } = resolveTarget(this.config, environment, app);
+    const { namespace, spec } = this.registry.resolve(environment, app);
     const deployment = await findDeployment(this.gateway, namespace, app);
     if (deployment === null) {
       return null;
@@ -47,7 +50,13 @@ export class StatusService {
     const pods = await this.gateway.listPods(namespace, app);
     // These two do not depend on each other, so they run at the same time.
     const [probe, usage] = await Promise.all([
-      this.gateway.getServiceHealth(namespace, app, SERVICE_PORT, this.config.timeouts.healthRequestMs),
+      this.gateway.getServiceHealth(
+        namespace,
+        app,
+        SERVICE_PORT,
+        spec.healthPath,
+        this.config.timeouts.healthRequestMs,
+      ),
       this.metrics.getAppUsage(namespace, app, pods),
     ]);
 
@@ -70,7 +79,7 @@ export class StatusService {
 
   /** CPU and memory of the app's pods only. Returns null when the app is not deployed. */
   async getUsage(environment: string, app: string): Promise<AppUsage | MetricsUnavailable | null> {
-    const { namespace } = resolveTarget(this.config, environment, app);
+    const { namespace } = this.registry.resolve(environment, app);
     if ((await findDeployment(this.gateway, namespace, app)) === null) {
       return null;
     }
@@ -86,10 +95,10 @@ export class StatusService {
     return this.gateway.clusterName();
   }
 
-  /** One summary per environment and app. A failure in one environment does not hide the others. */
+  /** One summary per environment and service. A failure in one environment does not hide the others. */
   getSummaries(): Promise<EnvironmentSummary[]> {
     const targets = Object.keys(this.config.environments).flatMap((environment) =>
-      Object.keys(this.config.apps).map((app) => ({ environment, app })),
+      this.registry.list(environment).map((service) => ({ environment, app: service.name })),
     );
     return Promise.all(targets.map(({ environment, app }) => this.summarise(environment, app)));
   }

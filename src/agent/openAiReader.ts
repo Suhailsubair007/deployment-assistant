@@ -152,10 +152,10 @@ const ReadingState = Annotation.Root({
 type ReadingStateType = typeof ReadingState.State;
 
 function buildWorkflow(deps: OpenAiReaderDeps, log: (...parts: unknown[]) => void) {
-  const instructions = instructionsFor(deps.known);
-
   async function askModel(state: ReadingStateType): Promise<Partial<ReadingStateType>> {
     try {
+      // Built for each message: the list of apps grows when a service is created from the chat.
+      const instructions = instructionsFor(deps.known);
       const request = { instructions, message: messageFor(state.text, state.awaiting), tools: TOOL_DEFINITIONS };
       return { toolCall: await deps.askModel(request) };
     } catch (error) {

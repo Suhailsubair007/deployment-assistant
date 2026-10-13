@@ -5,16 +5,19 @@ import { formatDeploymentId } from "@/services/historyStore.ts";
 import type { HistoryStore } from "@/services/historyStore.ts";
 import { buildManifests } from "@/services/manifestBuilder.ts";
 import type { OperationStore } from "@/services/operationStore.ts";
-import { findDeployment, resolveTarget } from "@/services/target.ts";
+import type { ServiceRegistry } from "@/services/serviceRegistry.ts";
+import { findDeployment } from "@/services/target.ts";
 import type { ClusterGateway, PodInfo } from "@/types/cluster.ts";
 import type { AppConfig } from "@/types/config.ts";
-import type { ChangePlan, DeploymentServiceDeps, DeploymentStatus, StartedOperation } from "@/types/deployment.ts";
+import type { ChangePlan, DeployParams, DeploymentServiceDeps, DeploymentStatus, StartedOperation } from "@/types/deployment.ts";
+import type { ServiceSpec } from "@/types/service.ts";
 
 export class DeploymentService {
   private readonly gateway: ClusterGateway;
   private readonly history: HistoryStore;
   private readonly operations: OperationStore;
   private readonly config: AppConfig;
+  private readonly registry: ServiceRegistry;
   private readonly explainer: FailureExplainer;
   private readonly imageRegistry: string;
   private readonly sleep: (ms: number) => Promise<void>;
@@ -25,6 +28,7 @@ export class DeploymentService {
     this.history = deps.history;
     this.operations = deps.operations;
     this.config = deps.config;
+    this.registry = deps.registry;
     this.explainer = deps.explainer;
     this.imageRegistry = deps.imageRegistry ?? "";
     this.sleep = deps.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
@@ -34,11 +38,10 @@ export class DeploymentService {
   // ---- Step 1: planning ----
 
   async planDeploy(request: { environment: string; app: string; version: string }): Promise<ChangePlan> {
-    const { namespace, defaults } = resolveTarget(this.config, request.environment, request.app);
-    const registry = this.imageRegistry === "" ? "" : `${this.imageRegistry}/`;
-    const image = `${registry}${defaults.imageRepository}:${request.version}`;
+    const { namespace, spec } = this.registry.resolve(request.environment, request.app);
+    const image = this.imageOf(spec, request.version);
     // Building the manifest checks the image and version; a bad one is refused right here.
-    buildManifests({ name: request.app, image, replicas: defaults.replicas, port: defaults.port, resources: defaults.resources });
+    buildManifests(paramsFor(spec, image, spec.replicas));
 
     const current = await findDeployment(this.gateway, namespace, request.app);
     if (current?.image === image) {
@@ -52,13 +55,13 @@ export class DeploymentService {
       image,
       currentImage: current?.image ?? null,
       // A deploy changes the version, not the size: keep the replicas the app already has.
-      replicas: current?.desiredReplicas ?? defaults.replicas,
+      replicas: current?.desiredReplicas ?? spec.replicas,
       currentReplicas: current?.desiredReplicas ?? null,
     };
   }
 
   async planScale(request: { environment: string; app: string; replicas: number }): Promise<ChangePlan> {
-    const { namespace, defaults } = resolveTarget(this.config, request.environment, request.app);
+    const { namespace, spec } = this.registry.resolve(request.environment, request.app);
     const current = await findDeployment(this.gateway, namespace, request.app);
     if (current === null) {
       throw new InvalidRequestError(
@@ -68,9 +71,9 @@ export class DeploymentService {
     if (!Number.isInteger(request.replicas) || request.replicas < 0) {
       throw new InvalidRequestError(`Replicas must be a whole number, 0 or more. I got ${request.replicas}.`);
     }
-    if (request.replicas > defaults.maxReplicas) {
+    if (request.replicas > spec.maxReplicas) {
       throw new InvalidRequestError(
-        `${request.app} can have at most ${defaults.maxReplicas} replicas (maxReplicas in the config file). You asked for ${request.replicas}.`,
+        `${request.app} can have at most ${spec.maxReplicas} replicas. You asked for ${request.replicas}.`,
       );
     }
     if (request.replicas === current.desiredReplicas) {
@@ -91,7 +94,7 @@ export class DeploymentService {
   }
 
   async planRollback(request: { environment: string; app: string }): Promise<ChangePlan> {
-    const { namespace } = resolveTarget(this.config, request.environment, request.app);
+    const { namespace } = this.registry.resolve(request.environment, request.app);
     const current = await findDeployment(this.gateway, namespace, request.app);
     // "Previous" means: the image that was running before the most recent deploy or rollback.
     const lastChange = this.history.latestImageChange(request.environment, request.app);
@@ -119,7 +122,7 @@ export class DeploymentService {
 
   /** Starts the change and returns as soon as Kubernetes has accepted it. */
   async execute(plan: ChangePlan, requestedBy: string): Promise<StartedOperation> {
-    const { defaults } = resolveTarget(this.config, plan.environment, plan.app);
+    const { spec } = this.registry.resolve(plan.environment, plan.app);
 
     // Gives the right message when another change is plainly still running.
     this.history.assertFree(plan.environment);
@@ -138,13 +141,7 @@ export class DeploymentService {
       );
     }
 
-    const manifests = buildManifests({
-      name: plan.app,
-      image: plan.image,
-      replicas: plan.replicas,
-      port: defaults.port,
-      resources: defaults.resources,
-    });
+    const manifests = buildManifests(paramsFor(spec, plan.image, plan.replicas));
 
     const record = this.history.start({
       environment: plan.environment,
@@ -239,6 +236,12 @@ export class DeploymentService {
     }
   }
 
+  /** The service's full image name for one version: registry, repository and version. */
+  private imageOf(spec: ServiceSpec, version: string): string {
+    const registry = this.imageRegistry === "" ? "" : `${this.imageRegistry}/`;
+    return `${registry}${spec.imageRepository}:${version}`;
+  }
+
   /** After a failed deploy the old pods still serve; tell the user how to return to them. */
   private rollbackHint(plan: ChangePlan): string {
     if (plan.action === "scale" || plan.currentImage === null) {
@@ -246,6 +249,19 @@ export class DeploymentService {
     }
     return ` The old version is still running. Type "roll back ${plan.environment}" to return to ${plan.currentImage}.`;
   }
+}
+
+/** What the manifest builder needs: the service's settings, with the image and replicas of this change. */
+function paramsFor(spec: ServiceSpec, image: string, replicas: number): DeployParams {
+  return {
+    name: spec.name,
+    image,
+    replicas,
+    port: spec.port,
+    resources: spec.resources,
+    healthPath: spec.healthPath,
+    env: spec.env,
+  };
 }
 
 function notReady(pods: PodInfo[]): PodInfo[] {

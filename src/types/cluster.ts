@@ -116,7 +116,7 @@ export interface ClusterGateway {
   listNodeMetrics(): Promise<NodeUsage[]>;
 
   /** Calls GET /health on the app through its Service and measures how long it takes. */
-  getServiceHealth(namespace: string, service: string, port: number, timeoutMs: number): Promise<HealthProbe>;
+  getServiceHealth(namespace: string, service: string, port: number, path: string, timeoutMs: number): Promise<HealthProbe>;
 }
 
 /** What the gateway was doing when a call failed. Used to write the message. */

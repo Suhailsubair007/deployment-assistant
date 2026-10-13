@@ -44,6 +44,10 @@ export class FakeGateway implements ClusterGateway {
   /** Set this to make metrics calls fail, as they do when metrics-server is missing. */
   metricsError: Error | null = null;
   events = new Map<string, EventInfo[]>();
+  /** The Deployment manifest last applied, by "namespace/name". */
+  manifests = new Map<string, Manifest>();
+  /** Every health call, in order, for example "staging sample-app:80 /health". */
+  healthCalls: string[] = [];
   logs = new Map<string, string[]>();
 
   private readonly failures = new Map<string, Error>();
@@ -122,6 +126,7 @@ export class FakeGateway implements ClusterGateway {
     const image = spec.template.spec.containers[0]?.image ?? "";
     const name = manifest.metadata.name;
     this.deployments.set(`${namespace}/${name}`, { name, namespace, image, desiredReplicas: spec.replicas });
+    this.manifests.set(`${namespace}/${name}`, manifest);
     this.writes.push(`applyDeployment ${namespace} ${image} x${spec.replicas}`);
   }
 
@@ -180,8 +185,9 @@ export class FakeGateway implements ClusterGateway {
     return this.nodeUsage;
   }
 
-  async getServiceHealth(): Promise<HealthProbe> {
+  async getServiceHealth(namespace: string, service: string, port: number, path: string): Promise<HealthProbe> {
     this.throwIfTold("getServiceHealth");
+    this.healthCalls.push(`${namespace} ${service}:${port} ${path}`);
     return this.health;
   }
 

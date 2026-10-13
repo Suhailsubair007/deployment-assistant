@@ -13,6 +13,8 @@ import { DeploymentService } from "@/services/deploymentService.ts";
 import { FailureExplainer } from "@/services/failureExplainer.ts";
 import { HistoryStore } from "@/services/historyStore.ts";
 import { OperationStore } from "@/services/operationStore.ts";
+import { ServiceRegistry } from "@/services/serviceRegistry.ts";
+import type { ServiceSpec } from "@/types/service.ts";
 import { FakeGateway } from "./helpers/fakeGateway.ts";
 
 const STAGING = { environment: "staging", app: "sample-app" };
@@ -25,12 +27,15 @@ function setup(options: { imageRegistry?: string; sleep?: (ms: number) => Promis
   const gateway = new FakeGateway();
   const history = new HistoryStore(":memory:", "fake-cluster");
   const operations = new OperationStore();
+  const config = loadConfig("config/app.config.yaml");
+  const registry = new ServiceRegistry({ path: ":memory:", cluster: "fake-cluster", config });
   let clockMs = 0;
   const service = new DeploymentService({
     gateway,
     history,
     operations,
-    config: loadConfig("config/app.config.yaml"),
+    config,
+    registry,
     explainer: new FailureExplainer(gateway),
     imageRegistry: options.imageRegistry,
     sleep:
@@ -40,7 +45,7 @@ function setup(options: { imageRegistry?: string; sleep?: (ms: number) => Promis
       }),
     now: () => clockMs,
   });
-  return { gateway, history, operations, service, elapsedMs: () => clockMs };
+  return { gateway, history, operations, registry, service, elapsedMs: () => clockMs };
 }
 
 // ---- Planning: what would change. Nothing is touched yet. ----
@@ -240,7 +245,7 @@ test("scaling is refused beyond the maximum, when nothing is deployed, and when 
   gateway.seed("staging", "sample-app", "sample-app:v1", 3);
   await assert.rejects(
     service.planScale({ ...STAGING, replicas: 500 }),
-    new InvalidRequestError("sample-app can have at most 10 replicas (maxReplicas in the config file). You asked for 500."),
+    new InvalidRequestError("sample-app can have at most 10 replicas. You asked for 500."),
   );
   await assert.rejects(
     service.planScale({ ...STAGING, replicas: 3 }),
@@ -405,4 +410,65 @@ test("losing the cluster during a rollout ends the operation with a clear messag
     'I lost track of the rollout: I can\'t reach the cluster (context "fake-cluster"). Deployment ID: dep-001',
   );
   assert.equal(history.latestImageChange("staging", "sample-app")?.status, "failed");
+});
+
+// ---- Services saved in the registry ----
+
+const ORDERS_API: ServiceSpec = {
+  name: "orders-api",
+  environment: "staging",
+  imageRepository: "orders-api",
+  folder: null,
+  port: 3000,
+  healthPath: "/healthz",
+  replicas: 2,
+  maxReplicas: 4,
+  resources: { requests: { cpu: "200m", memory: "64Mi" }, limits: { cpu: "300m", memory: "96Mi" } },
+  env: [{ name: "NODE_ENV", value: "production" }],
+  lastVersion: 0,
+};
+
+test("a saved service is deployed with its own port, health path, resources and variables", async () => {
+  const { service, gateway, registry } = setup();
+  registry.save(ORDERS_API);
+
+  const plan = await service.planDeploy({ environment: "staging", app: "orders-api", version: "v1" });
+  const { done } = await service.execute(plan, "asha");
+  await done;
+
+  assert.equal(plan.image, "orders-api:v1");
+  assert.equal(plan.replicas, 2);
+  const manifest = gateway.manifests.get("staging/orders-api");
+  const podSpec = manifest?.spec as { template: { spec: { containers: Record<string, unknown>[] } } };
+  const container = podSpec.template.spec.containers[0];
+  assert.deepEqual(container.ports, [{ containerPort: 3000 }]);
+  assert.deepEqual(container.readinessProbe, {
+    httpGet: { path: "/healthz", port: 3000 },
+    initialDelaySeconds: 2,
+    periodSeconds: 5,
+  });
+  assert.deepEqual(container.resources, ORDERS_API.resources);
+  assert.deepEqual(container.env, [{ name: "NODE_ENV", value: "production" }]);
+});
+
+test("a saved service is scaled up to its own maximum and no further", async () => {
+  const { service, gateway, registry } = setup();
+  registry.save(ORDERS_API);
+  gateway.seed("staging", "orders-api", "orders-api:v1", 2);
+
+  await assert.rejects(
+    service.planScale({ environment: "staging", app: "orders-api", replicas: 5 }),
+    new InvalidRequestError("orders-api can have at most 4 replicas. You asked for 5."),
+  );
+  assert.equal((await service.planScale({ environment: "staging", app: "orders-api", replicas: 4 })).replicas, 4);
+});
+
+test("a service saved for staging cannot be deployed to prod", async () => {
+  const { service, registry } = setup();
+  registry.save(ORDERS_API);
+
+  await assert.rejects(
+    service.planDeploy({ environment: "prod", app: "orders-api", version: "v1" }),
+    new InvalidRequestError('I don\'t know an app called "orders-api". I know: sample-app.'),
+  );
 });

@@ -17,6 +17,7 @@ import { FailureExplainer } from "@/services/failureExplainer.ts";
 import { HistoryStore } from "@/services/historyStore.ts";
 import { MetricsService } from "@/services/metricsService.ts";
 import { OperationStore } from "@/services/operationStore.ts";
+import { ServiceRegistry } from "@/services/serviceRegistry.ts";
 import { StatusService } from "@/services/statusService.ts";
 import { formatCpu, formatMemory } from "@/services/units.ts";
 
@@ -24,17 +25,20 @@ const APP = "sample-app";
 
 const gateway = new KubeGateway(process.env.KUBE_CONTEXT);
 const config = loadConfig(process.env.CONFIG_PATH ?? "config/app.config.yaml");
-const history = new HistoryStore(process.env.DB_PATH ?? "data/assistant.db", gateway.clusterName());
+const dbPath = process.env.DB_PATH ?? "data/assistant.db";
+const history = new HistoryStore(dbPath, gateway.clusterName());
+const registry = new ServiceRegistry({ path: dbPath, cluster: gateway.clusterName(), config });
 const explainer = new FailureExplainer(gateway);
 const deployments = new DeploymentService({
   gateway,
   history,
   operations: new OperationStore(),
   config,
+  registry,
   explainer,
   imageRegistry: process.env.IMAGE_REGISTRY,
 });
-const statuses = new StatusService({ gateway, history, config, explainer, metrics: new MetricsService(gateway) });
+const statuses = new StatusService({ gateway, history, config, registry, explainer, metrics: new MetricsService(gateway) });
 
 /** Prints the verdict for one environment and returns it. */
 async function printStatus(environment: string): Promise<string> {
@@ -116,7 +120,7 @@ async function read(namespace: string, app: string): Promise<void> {
   }
 
   console.log("\nGET /health through the Service:");
-  console.log(" ", JSON.stringify(await gateway.getServiceHealth(namespace, app, 80, 3000)));
+  console.log(" ", JSON.stringify(await gateway.getServiceHealth(namespace, app, 80, "/health", 3000)));
 
   console.log("\nUsage:");
   try {

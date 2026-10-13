@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 
+import { liveNames } from "@/agent/knownNames.ts";
 import { createRuleReader } from "@/agent/messageReader.ts";
 import {
   formatFullStatus,
@@ -50,7 +51,7 @@ export class Agent {
     this.history = deps.history;
     this.sessions = deps.sessions;
     this.now = deps.now ?? Date.now;
-    this.known = { environments: Object.keys(deps.config.environments), apps: Object.keys(deps.config.apps) };
+    this.known = liveNames(deps.config, deps.registry);
     this.reader = deps.reader ?? createRuleReader(this.known);
   }
 
@@ -130,12 +131,7 @@ export class Agent {
       };
     }
 
-    const app = request.app ?? session.app ?? (this.known.apps.length === 1 ? this.known.apps[0] : undefined);
-    if (app === undefined) {
-      return this.ask(session, request, `Which app: ${this.oneOf(this.known.apps)}?`);
-    }
-    const environments = this.oneOf(this.known.environments);
-
+    // These three are not about one app, so they never ask which one.
     switch (request.intent) {
       case "help":
         return { text: formatHelp(this.known, this.reader.description) };
@@ -156,7 +152,16 @@ export class Agent {
         }
         return { text: formatHistory(this.history.list(filter), filter) };
       }
+    }
 
+    const apps = this.known.apps;
+    const app = request.app ?? session.app ?? (apps.length === 1 ? apps[0] : undefined);
+    if (app === undefined) {
+      return this.ask(session, request, `Which app: ${this.oneOf(apps)}?`);
+    }
+    const environments = this.oneOf(this.known.environments);
+
+    switch (request.intent) {
       case "deploy": {
         const { version, environment } = request;
         const pieces = { ...request, app };

@@ -261,13 +261,21 @@ export class KubeGateway implements ClusterGateway {
     }
   }
 
-  async getServiceHealth(namespace: string, service: string, port: number, timeoutMs: number): Promise<HealthProbe> {
+  async getServiceHealth(
+    namespace: string,
+    service: string,
+    port: number,
+    path: string,
+    timeoutMs: number,
+  ): Promise<HealthProbe> {
     const startedAt = performance.now();
     const elapsedMs = (): number => Math.round(performance.now() - startedAt);
 
-    const request = this.call("call /health through the service", namespace, async ({ core }) => {
+    const request = this.call(`call ${path} through the service`, namespace, async ({ core }) => {
       try {
-        await core.connectGetNamespacedServiceProxyWithPath({ name: `${service}:${port}`, namespace, path: "health" });
+        // The library wants the path without its leading slash.
+        const proxyPath = path.replace(/^\//, "");
+        await core.connectGetNamespacedServiceProxyWithPath({ name: `${service}:${port}`, namespace, path: proxyPath });
         // The library only resolves for a 2xx answer.
         return { ok: true, statusCode: 200, responseMs: elapsedMs() };
       } catch (error) {

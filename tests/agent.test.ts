@@ -12,6 +12,8 @@ import { FailureExplainer } from "@/services/failureExplainer.ts";
 import { HistoryStore } from "@/services/historyStore.ts";
 import { MetricsService } from "@/services/metricsService.ts";
 import { OperationStore } from "@/services/operationStore.ts";
+import { ServiceRegistry } from "@/services/serviceRegistry.ts";
+import type { ServiceSpec } from "@/types/service.ts";
 import { StatusService } from "@/services/statusService.ts";
 import { FakeGateway } from "./helpers/fakeGateway.ts";
 
@@ -35,13 +37,15 @@ async function setup(reader?: MessageReader) {
   const operations = new OperationStore();
   const explainer = new FailureExplainer(gateway);
   const sessions = new SessionStore();
+  const registry = new ServiceRegistry({ path: ":memory:", cluster: "fake-cluster", config });
   let nowMs = Date.parse("2026-10-12T12:00:00Z");
   const agent = new Agent({
     config,
     history,
     sessions,
-    deployments: new DeploymentService({ gateway, history, operations, config, explainer, sleep: async () => {} }),
-    statuses: new StatusService({ gateway, history, config, explainer, metrics: new MetricsService(gateway) }),
+    registry,
+    deployments: new DeploymentService({ gateway, history, operations, config, registry, explainer, sleep: async () => {} }),
+    statuses: new StatusService({ gateway, history, config, registry, explainer, metrics: new MetricsService(gateway) }),
     now: () => nowMs,
     reader,
   });
@@ -51,6 +55,7 @@ async function setup(reader?: MessageReader) {
     history,
     operations,
     sessions,
+    registry,
     say: (text: string, tab = TAB, user = "asha") => agent.handleMessage(tab, text, user),
     passTime: (minutes: number) => {
       nowMs += minutes * 60_000;
@@ -413,7 +418,7 @@ test("a value the model got wrong is refused by the same checks as a typed one",
 
   const reply = await say("make staging huge");
 
-  assert.equal(reply.text, "sample-app can have at most 10 replicas (maxReplicas in the config file). You asked for 500.");
+  assert.equal(reply.text, "sample-app can have at most 10 replicas. You asked for 500.");
   assert.equal(reply.action, undefined);
   assert.deepEqual(gateway.writes, []);
 });
@@ -511,4 +516,54 @@ test("the did-not-understand reply does not name the reader: that is for help an
   const reply = await say("tell me a joke");
 
   assert.ok(!reply.text.includes("Messages are read by"), reply.text);
+});
+
+// ---- More than one service ----
+
+const ORDERS_API: ServiceSpec = {
+  name: "orders-api",
+  environment: "staging",
+  imageRepository: "orders-api",
+  folder: null,
+  port: 3000,
+  healthPath: "/health",
+  replicas: 2,
+  maxReplicas: 4,
+  resources: { requests: { cpu: "100m", memory: "128Mi" }, limits: { cpu: "500m", memory: "256Mi" } },
+  env: [],
+  lastVersion: 0,
+};
+
+test("a service saved while the app runs is known by name at once", async () => {
+  const { say, registry } = await setup();
+
+  registry.save(ORDERS_API);
+  const reply = await say("is orders-api healthy in staging?");
+
+  assert.match(reply.text, /^orders-api is not deployed in staging yet\./);
+});
+
+test("with two services, a question that names none asks which one", async () => {
+  const { say, registry } = await setup();
+  registry.save(ORDERS_API);
+
+  const question = await say("is it healthy in staging?");
+  const answer = await say("sample-app");
+
+  assert.equal(question.text, "Which app: sample-app or orders-api?");
+  assert.match(answer.text, /^sample-app \(staging\) is HEALTHY/);
+});
+
+test("with two services, help, nodes and history are answered without asking which app", async () => {
+  const { say, registry } = await setup();
+  registry.save(ORDERS_API);
+
+  const help = await say("help");
+  const nodes = await say("how are the nodes doing?");
+  const history = await say("show my last 5 deployments");
+
+  for (const reply of [help, nodes, history]) {
+    assert.doesNotMatch(reply.text, /Which app/);
+  }
+  assert.match(nodes.text, /node-1/);
 });

@@ -1,6 +1,7 @@
 import type { SessionStore } from "@/agent/sessionStore.ts";
 import type { DeploymentService } from "@/services/deploymentService.ts";
 import type { HistoryStore } from "@/services/historyStore.ts";
+import type { ServiceRegistry } from "@/services/serviceRegistry.ts";
 import type { StatusService } from "@/services/statusService.ts";
 import type { AppConfig, LlmSettings } from "@/types/config.ts";
 import type { ChangePlan } from "@/types/deployment.ts";
@@ -21,6 +22,8 @@ export interface AgentDeps {
   statuses: StatusService;
   history: HistoryStore;
   sessions: SessionStore;
+  /** The services the chat can talk about. */
+  registry: ServiceRegistry;
   /** How messages are read. Left out, the built-in rules read them. */
   reader?: MessageReader;
   /** The current time in milliseconds. Tests replace this. */

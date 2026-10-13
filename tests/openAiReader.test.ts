@@ -380,3 +380,23 @@ test("the description names the model and the fallback", () => {
     "Messages are read by OpenAI (test-model). If it is unavailable, built-in rules read them instead.",
   );
 });
+
+test("the model is told about an app that became known after the reader was made", async () => {
+  const names = { environments: ["staging", "prod"], apps: ["sample-app"] };
+  const requests: ModelRequest[] = [];
+  const reader = createOpenAiReader({
+    known: names,
+    model: "test-model",
+    retryAfterSeconds: 60,
+    askModel: async (request) => {
+      requests.push(request);
+      return NODES;
+    },
+    log: () => {},
+  });
+
+  names.apps.push("orders-api");
+  await reader.read("are the machines okay?");
+
+  assert.ok(requests[0].instructions.includes("Apps: sample-app, orders-api."), requests[0].instructions);
+});

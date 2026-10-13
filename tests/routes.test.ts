@@ -12,6 +12,7 @@ import { FailureExplainer } from "@/services/failureExplainer.ts";
 import { HistoryStore } from "@/services/historyStore.ts";
 import { MetricsService } from "@/services/metricsService.ts";
 import { OperationStore } from "@/services/operationStore.ts";
+import { ServiceRegistry } from "@/services/serviceRegistry.ts";
 import { StatusService } from "@/services/statusService.ts";
 import { FakeGateway } from "./helpers/fakeGateway.ts";
 
@@ -36,13 +37,15 @@ async function setup() {
   const operations = new OperationStore();
   const explainer = new FailureExplainer(gateway);
   const sessions = new SessionStore();
-  const statuses = new StatusService({ gateway, history, config, explainer, metrics: new MetricsService(gateway) });
+  const registry = new ServiceRegistry({ path: ":memory:", cluster: "fake-cluster", config });
+  const statuses = new StatusService({ gateway, history, config, registry, explainer, metrics: new MetricsService(gateway) });
   const agent = new Agent({
     config,
     history,
     sessions,
     statuses,
-    deployments: new DeploymentService({ gateway, history, operations, config, explainer, sleep: async () => {} }),
+    registry,
+    deployments: new DeploymentService({ gateway, history, operations, config, registry, explainer, sleep: async () => {} }),
   });
   const app = createApp({ agent, operations, statuses, sessions, logError: () => {} });
   const server = app.listen(0, "127.0.0.1");

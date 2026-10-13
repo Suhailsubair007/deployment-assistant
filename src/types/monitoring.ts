@@ -1,6 +1,7 @@
 import type { FailureExplainer } from "@/services/failureExplainer.ts";
 import type { HistoryStore } from "@/services/historyStore.ts";
 import type { MetricsService } from "@/services/metricsService.ts";
+import type { ServiceRegistry } from "@/services/serviceRegistry.ts";
 import type { ClusterGateway, DeploymentInfo, HealthProbe, PodInfo } from "@/types/cluster.ts";
 import type { AppConfig } from "@/types/config.ts";
 
@@ -111,6 +112,8 @@ export interface StatusServiceDeps {
   explainer: FailureExplainer;
   history: HistoryStore;
   config: AppConfig;
+  /** Where each service's settings come from. */
+  registry: ServiceRegistry;
   /** The current time. Tests replace this. */
   now?: () => Date;
 }
