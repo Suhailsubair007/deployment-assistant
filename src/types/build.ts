@@ -72,6 +72,50 @@ export interface BuildToolsDeps {
   owner?: string;
 }
 
+export interface CommandRunnerDeps {
+  /** Where the command lines and the programs' output go. Left out, they go to the server log. */
+  log?: (line: string) => void;
+  /** The file started for a program name. Left out, the name is looked up on the PATH. Tests point them at Node. */
+  programs?: Record<string, string>;
+  /** How long a program that was asked to stop gets before it is stopped the hard way. Tests shorten this. */
+  stopGraceMs?: number;
+}
+
+/** The EKS case of ClusterTarget: the cluster's region, account, name and registry. */
+export type EksTarget = Extract<ClusterTarget, { kind: "eks" }>;
+
+export interface KindImageBuilderDeps {
+  run: RunCommand;
+  /** Name of the kind cluster the images are loaded into. */
+  kindCluster: string;
+  /** Give up on one build or one load after this long. */
+  timeoutMs: number;
+}
+
+export interface EcrImageBuilderDeps {
+  run: RunCommand;
+  target: EksTarget;
+  /** AWS profile for the upload. Left out, aws uses the assistant's own environment. */
+  awsProfile?: string;
+  /** Give up on one build or one upload after this long. */
+  timeoutMs: number;
+}
+
+export interface TerraformServiceInfraDeps {
+  run: RunCommand;
+  target: EksTarget;
+  /** AWS profile for aws and Terraform. Left out, they use the assistant's own environment. */
+  awsProfile?: string;
+  /** Bucket that holds the Terraform state. Left out, it is the name the bootstrap stack gives it. */
+  stateBucket?: string;
+  /** Value of the "owner" tag on what Terraform creates. Left out, it is "deployment-assistant". */
+  owner?: string;
+  /** Folder of the Terraform stack. Left out, it is terraform/service in this project. */
+  stackFolder?: string;
+  /** Give up on one aws or Terraform command after this long. */
+  timeoutMs: number;
+}
+
 /** What the assistant learned by looking at a project folder. */
 export interface ProjectInfo {
   /** The folder's full path, with "~" and links resolved. */
