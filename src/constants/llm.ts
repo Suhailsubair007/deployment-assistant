@@ -80,7 +80,9 @@ export const DETAIL_SCHEMAS: Record<Detail, Record<string, unknown>> = {
   mine: { type: ["boolean", "null"], description: "True when the user asks only for their own deployments." },
   topPodBy: {
     type: ["string", "null"],
-    enum: ["cpu", "memory"],
+    // null must be in the list too. Without it the model has to pick "cpu" or "memory" for
+    // every usage question, and the answer is one pod instead of the usage of the app.
+    enum: ["cpu", "memory", null],
     description: "Set only when the user asks which single pod uses the most CPU or the most memory.",
   },
 };

@@ -247,6 +247,21 @@ test("every tool lists exactly its own details, so the model cannot add others",
   assert.deepEqual(Object.keys(scale?.parameters.properties ?? {}), ["app", "environment", "replicas"]);
 });
 
+test("every detail can be left empty, also one with a fixed list of values", async () => {
+  const { reader, requests } = setup([NODES]);
+
+  await reader.read("are the machines okay?");
+
+  for (const tool of requests[0].tools) {
+    for (const [detail, schema] of Object.entries(tool.parameters.properties)) {
+      const { type, enum: values } = schema as { type: string[]; enum?: unknown[] };
+      assert.ok(type.includes("null"), `${tool.name}.${detail}`);
+      // Without null in the list the model has to pick a value, even when the user gave none.
+      assert.ok(values === undefined || values.includes(null), `${tool.name}.${detail}`);
+    }
+  }
+});
+
 test("an open question is passed to the model together with the answer", async () => {
   const { reader, requests } = setup([{ name: "give_details", args: { app: null, environment: "staging", version: null, replicas: null } }]);
 
