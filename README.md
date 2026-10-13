@@ -83,6 +83,35 @@ kubectl --context kind-deploy-assistant -n kube-system scale deployment metrics-
 
 **Cluster not reachable.** Stop the cluster with `docker stop deploy-assistant-control-plane` and ask anything. Start it again with `docker start deploy-assistant-control-plane`.
 
+## Run it against EKS
+
+[terraform/README.md](terraform/README.md) creates the cluster. After that, the same app runs against it with two settings changed:
+
+```bash
+# A kubeconfig context that uses the assistant's limited IAM role
+$(terraform -chdir=terraform output -raw assistant_kubeconfig_command)
+
+# Put the sample app images where the cluster can pull them from
+./scripts/push-sample-app.sh "$(terraform -chdir=terraform output -raw image_registry)"
+
+KUBE_CONTEXT=eks-assistant \
+IMAGE_REGISTRY="$(terraform -chdir=terraform output -raw image_registry)" \
+npm start
+```
+
+No code changes. `KUBE_CONTEXT` picks the cluster, and `IMAGE_REGISTRY` is put in front of image names, because EKS cannot see images that exist only on your laptop.
+
+## Check the assistant's permissions locally
+
+On EKS the assistant works with a small set of permissions in the `staging` and `prod` namespaces. The same rules can be tried on kind:
+
+```bash
+./scripts/kind-restricted-context.sh
+KUBE_CONTEXT=kind-deploy-assistant-restricted npm start
+```
+
+Everything in the chat still works. Deleting, reading Secrets and other namespaces are refused by Kubernetes, which you can see with `kubectl --context kind-deploy-assistant-restricted auth can-i delete deployments -n staging`.
+
 ## Tests
 
 ```bash

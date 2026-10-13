@@ -1,0 +1,143 @@
+# The assistant's permissions, for testing them on the local kind cluster.
+#
+# The rules are the same as in terraform/modules/kubernetes/main.tf. Change both together.
+# On EKS the permissions go to a group that an IAM role is mapped to. kind has no IAM,
+# so here they go to a ServiceAccount. scripts/kind-restricted-context.sh creates a
+# kubeconfig context that logs in as that ServiceAccount.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: deployment-assistant
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: deployment-assistant
+  namespace: staging
+rules:
+  # Deploy, scale and roll back: read the Deployment, create it, replace it.
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "create", "update"]
+  # The Service in front of the pods.
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "create", "update"]
+  # GET /health through the Service.
+  - apiGroups: [""]
+    resources: ["services/proxy"]
+    verbs: ["get"]
+  # Pod states and restart counts.
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["list"]
+  # The last log lines of a crashing pod.
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+  # Why a pod is not ready, for example a failing readiness probe.
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["list"]
+  # Lets the assistant tell "namespace is missing" apart from "app is not deployed".
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get"]
+  # CPU and memory per pod, from metrics-server.
+  - apiGroups: ["metrics.k8s.io"]
+    resources: ["pods"]
+    verbs: ["list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: deployment-assistant
+  namespace: prod
+rules: # the same rules as for staging
+  # Deploy, scale and roll back: read the Deployment, create it, replace it.
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "create", "update"]
+  # The Service in front of the pods.
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "create", "update"]
+  # GET /health through the Service.
+  - apiGroups: [""]
+    resources: ["services/proxy"]
+    verbs: ["get"]
+  # Pod states and restart counts.
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["list"]
+  # The last log lines of a crashing pod.
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+  # Why a pod is not ready, for example a failing readiness probe.
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["list"]
+  # Lets the assistant tell "namespace is missing" apart from "app is not deployed".
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get"]
+  # CPU and memory per pod, from metrics-server.
+  - apiGroups: ["metrics.k8s.io"]
+    resources: ["pods"]
+    verbs: ["list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: deployment-assistant
+  namespace: staging
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: deployment-assistant
+subjects:
+  - kind: ServiceAccount
+    name: deployment-assistant
+    namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: deployment-assistant
+  namespace: prod
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: deployment-assistant
+subjects:
+  - kind: ServiceAccount
+    name: deployment-assistant
+    namespace: default
+---
+# Nodes belong to no namespace, so reading them needs a ClusterRole. Read-only.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: deployment-assistant-nodes-read
+rules:
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["list"]
+  - apiGroups: ["metrics.k8s.io"]
+    resources: ["nodes"]
+    verbs: ["list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: deployment-assistant-nodes-read
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: deployment-assistant-nodes-read
+subjects:
+  - kind: ServiceAccount
+    name: deployment-assistant
+    namespace: default

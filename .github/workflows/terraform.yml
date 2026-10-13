@@ -1,0 +1,25 @@
+# Runs the Terraform checks on every change to the terraform folder.
+# It needs no AWS credentials: nothing is planned or applied here.
+name: terraform
+
+on:
+  push:
+    paths: ["terraform/**", "scripts/tf-check.sh", ".github/workflows/terraform.yml"]
+  pull_request:
+    paths: ["terraform/**", "scripts/tf-check.sh", ".github/workflows/terraform.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.16.5"
+
+      # fmt, validate and tflint; tflint runs from its container image.
+      - run: ./scripts/tf-check.sh
