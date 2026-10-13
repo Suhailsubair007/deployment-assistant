@@ -32,6 +32,17 @@ export class InvalidRequestError extends AppError {}
 /** Another change to the same environment is still running. */
 export class DeployInProgressError extends AppError {}
 
+/** A program the assistant ran (docker, kind, aws, terraform) was missing, failed or took too long. */
+export class CommandFailedError extends AppError {
+  /** The last lines the program printed, for the server log. */
+  output: string;
+
+  constructor(message: string, output = "") {
+    super(message);
+    this.output = output;
+  }
+}
+
 /** OpenAI could not read a chat message: the call failed, or its answer was not usable. */
 export class ModelUnavailableError extends AppError {
   /** The technical reason, for the server log only. */
