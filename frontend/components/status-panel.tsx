@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import { cn } from "cn";
 import { RefreshCw } from "lucide-react";
 
@@ -5,8 +8,10 @@ import { StatusPill, toneOf } from "@/components/status-pill";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { EnvironmentStatusState } from "@/hooks/use-environment-status";
+import { NO_FILTER, filterCards, filterChoices, isFiltering, settleFilter } from "@/lib/environment-filter";
 import type { EnvironmentSummary } from "@/lib/types";
 
 const CARD = "relative overflow-hidden rounded-xl border bg-card py-3 pr-3 pl-4";
@@ -68,10 +73,54 @@ function PlaceholderCard() {
   );
 }
 
-/** One card per environment: status, image and last update, with a Refresh button. */
+interface FilterSelectProps {
+  /** Read out as the name of the box, for example "Filter by app". */
+  label: string;
+  /** The choice that switches the filter off, for example "All apps". */
+  allLabel: string;
+  names: string[];
+  /** The chosen name, or null while the filter is off. */
+  value: string | null;
+  onChange: (value: string | null) => void;
+}
+
+/** A dropdown with one name per app or environment, and a first choice that shows them all. */
+function FilterSelect({ label, allLabel, names, value, onChange }: FilterSelectProps) {
+  const items = [{ value: null, label: allLabel }, ...names.map((name) => ({ value: name, label: name }))];
+
+  return (
+    <Select items={items} value={value} onValueChange={onChange}>
+      {/* While the filter is off the words are grey; a chosen name is in the text colour. */}
+      <SelectTrigger aria-label={label} className="w-full min-w-0 flex-1 bg-card text-[12.5px]">
+        <SelectValue />
+      </SelectTrigger>
+      {/* The list opens below the box, and may be wider than it for a long name. */}
+      <SelectContent align="start" alignItemWithTrigger={false} className="w-auto min-w-(--anchor-width)">
+        <SelectGroup>
+          {items.map((item) => (
+            <SelectItem key={item.value ?? ""} value={item.value} className="text-[12.5px]">
+              {item.label}
+            </SelectItem>
+          ))}
+        </SelectGroup>
+      </SelectContent>
+    </Select>
+  );
+}
+
+/** One card per environment and app: status, image and last update, with two filters and a Refresh button. */
 export function StatusPanel({ status }: { status: EnvironmentStatusState }) {
   const { cluster, environments, checkedAt, error, isRefreshing, refresh } = status;
+  const [chosenFilter, setChosenFilter] = useState(NO_FILTER);
   const hasCards = environments !== null && environments.length > 0;
+
+  const choices = filterChoices(environments ?? []);
+  // A name that has left the cluster since it was chosen no longer hides anything.
+  const filter = settleFilter(chosenFilter, choices);
+  const shown = filterCards(environments ?? [], filter);
+  // A filter with one name to choose from would change nothing, so it is left out.
+  const hasAppFilter = choices.apps.length > 1;
+  const hasEnvironmentFilter = choices.environments.length > 1;
 
   let checkedText = "Checking the cluster...";
   if (environments !== null) {
@@ -113,7 +162,50 @@ export function StatusPanel({ status }: { status: EnvironmentStatusState }) {
         </Alert>
       )}
 
-      {(environments === null || hasCards) && (
+      {(hasAppFilter || hasEnvironmentFilter) && (
+        <div className="grid gap-2 px-3 pt-3">
+          <div className="flex gap-2">
+            {hasAppFilter && (
+              <FilterSelect
+                label="Filter by app"
+                allLabel="All apps"
+                names={choices.apps}
+                value={filter.app}
+                onChange={(app) => setChosenFilter({ ...filter, app })}
+              />
+            )}
+            {hasEnvironmentFilter && (
+              <FilterSelect
+                label="Filter by environment"
+                allLabel="All environments"
+                names={choices.environments}
+                value={filter.environment}
+                onChange={(environment) => setChosenFilter({ ...filter, environment })}
+              />
+            )}
+          </div>
+          {isFiltering(filter) && (
+            <div className="flex items-center justify-between gap-3 px-1 text-xs text-muted-foreground">
+              <span aria-live="polite">
+                Showing {shown.length} of {environments?.length ?? 0}
+              </span>
+              <Button variant="link" onClick={() => setChosenFilter(NO_FILTER)} className="h-auto p-0 text-xs">
+                Clear filters
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Only both filters together can leave nothing: an app that is not in the chosen environment. */}
+      {hasCards && shown.length === 0 && (
+        <p className="px-4 py-7 text-center text-[13px] text-muted-foreground">
+          There is no <span className="font-medium text-foreground">{filter.app}</span> in{" "}
+          <span className="font-medium text-foreground">{filter.environment}</span>.
+        </p>
+      )}
+
+      {(environments === null || shown.length > 0) && (
         <div
           className={cn(
             "grid min-h-0 auto-cols-[minmax(240px,1fr)] grid-flow-col gap-2.5 overflow-auto p-3 min-[861px]:auto-cols-auto min-[861px]:grid-flow-row",
@@ -126,7 +218,7 @@ export function StatusPanel({ status }: { status: EnvironmentStatusState }) {
               <PlaceholderCard />
             </>
           ) : (
-            environments.map((summary, index) => (
+            shown.map((summary, index) => (
               <EnvironmentCard key={`${summary.environment}/${summary.app}`} summary={summary} delayMs={index * 70} />
             ))
           )}

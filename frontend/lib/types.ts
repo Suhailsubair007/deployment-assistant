@@ -49,6 +49,18 @@ export interface EnvironmentSummary {
   lastUpdate: string | null;
 }
 
+/** Which cards the status panel shows. null means the filter is off. */
+export interface EnvironmentFilter {
+  app: string | null;
+  environment: string | null;
+}
+
+/** The names the two filters of the status panel offer. */
+export interface FilterChoices {
+  apps: string[];
+  environments: string[];
+}
+
 /** How Rollo looks: resting, busy, pleased after good news, or uneasy after a problem. */
 export type RolloMood = "idle" | "working" | "happy" | "worried";
 
