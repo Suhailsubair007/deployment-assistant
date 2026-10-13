@@ -4,23 +4,28 @@ import { Check, CircleAlert, CircleCheck, Flag, LoaderCircle, X } from "lucide-r
 
 import { Rollo } from "@/components/rollo";
 import { MOOD_OF_ROLLOUT } from "@/lib/constants";
-import { parsePodProgress } from "@/lib/pod-progress";
+import { podProgressAt } from "@/lib/pod-progress";
 import { buildRolloutSteps, currentStep } from "@/lib/rollout-steps";
-import { podPosition, runnerPosition } from "@/lib/rollout-track";
-import type { PodProgress, RolloutState, StepState } from "@/lib/types";
+import { podPosition, runnerPosition, trackParts } from "@/lib/rollout-track";
+import type { OperationStage, PodProgress, RolloutState, RolloutStep, StepState } from "@/lib/types";
+
+/** How a mark on the track looks: the square of a pod, or the dot where a stage before the pods ends. */
+const MARK_CLASS: Record<StepState, string> = {
+  done: "animate-pop border-healthy-solid bg-healthy-solid",
+  active: "animate-pod-starting border-primary bg-primary",
+  failed: "border-down-solid bg-down-soft",
+  pending: "border-input bg-card",
+};
 
 /** A filled square is a ready pod. The first one that is not ready is the pod starting right now. */
-function podClass(index: number, ready: number, state: RolloutState): string {
+function podState(index: number, ready: number, state: RolloutState): StepState {
   if (index < ready) {
-    return "animate-pop border-healthy-solid bg-healthy-solid";
+    return "done";
   }
   if (state === "running" && index === ready) {
-    return "animate-pod-starting border-primary bg-primary";
+    return "active";
   }
-  if (state === "failed") {
-    return "border-down-solid bg-down-soft";
-  }
-  return "border-input bg-card";
+  return state === "failed" ? "failed" : "pending";
 }
 
 /** The round mark in front of the headline: a tick, a cross, a spinner, or an empty ring. */
@@ -75,23 +80,42 @@ function at(position: number): CSSProperties {
   return { left: `${position * 100}%` };
 }
 
+/** The word under each stage's part of the track. */
+const STAGE_LABEL: Record<OperationStage, string> = {
+  repository: "Repository",
+  build: "Build",
+  publish: "Upload",
+  pods: "Pods",
+};
+
 interface TrackProps {
   state: RolloutState;
   pods: PodProgress | null;
+  /** Every step of the change. A stage before the pods is drawn as a dot in the state of its step. */
+  steps: RolloutStep[];
+  /** Only for a change that builds an image: the stages it goes through, and the one it is at. */
+  stages?: OperationStage[];
+  stage?: OperationStage;
   /** The page saw this change running. Only then does Rollo glide along the track and celebrate at the end. */
   isLive: boolean;
 }
 
-/** The picture of a change: a track with one square per pod, and Rollo running along it to the flag. */
-function Track({ state, pods, isLive }: TrackProps) {
-  const position = runnerPosition(state, pods);
+/**
+ * The picture of a change: a track with one square per pod, and Rollo running along it to the flag.
+ * A change that builds an image has a dot for each stage before the pods, and the pods come after them.
+ */
+function Track({ state, pods, steps, stages, stage, isLive }: TrackProps) {
+  const position = runnerPosition(state, pods, stages, stage);
+  const parts = trackParts(stages);
+  const podsPart = parts.find((part) => part.stage === "pods");
   // Rollo and the coloured line behind it take the same time, so the line follows Rollo.
   // An old change gets no glide: it is drawn at once where it ended.
   const glide = isLive && "transition-[left,transform,background-color] duration-700 ease-out";
 
   return (
     // Decoration only: the headline above the track says the same in words.
-    <div aria-hidden="true">
+    // "@container" lets the words under the track ask how wide the picture is.
+    <div aria-hidden="true" className="@container">
       <div className="flex items-end gap-1">
         <div className="relative h-[70px] min-w-0 flex-1">
           {/* Positions are measured on this part. It starts and ends a little inside the
@@ -103,14 +127,27 @@ function Track({ state, pods, isLive }: TrackProps) {
               style={{ transform: `scaleX(${position})` }}
             />
             <span className="absolute bottom-1 left-0 size-2.5 -translate-x-1/2 rounded-full bg-healthy-solid" />
+            {parts.map(
+              (part) =>
+                part.stage !== "pods" && (
+                  <span
+                    key={part.stage}
+                    style={at(part.end)}
+                    className={cn(
+                      "absolute bottom-1 size-2.5 -translate-x-1/2 rounded-full border transition-colors duration-300",
+                      MARK_CLASS[steps.find((step) => step.id === part.stage)?.state ?? "pending"],
+                    )}
+                  />
+                ),
+            )}
             {pods !== null &&
               Array.from({ length: pods.total }, (_, index) => (
                 <span
                   key={index}
-                  style={at(podPosition(index, pods.total))}
+                  style={at(podPosition(index, pods.total, podsPart))}
                   className={cn(
                     "absolute bottom-0.5 size-3.5 -translate-x-1/2 rounded-[4px] border transition-colors duration-300",
-                    podClass(index, pods.ready, state),
+                    MARK_CLASS[podState(index, pods.ready, state)],
                   )}
                 />
               ))}
@@ -150,8 +187,23 @@ function Track({ state, pods, isLive }: TrackProps) {
         />
       </div>
       {/* The padding puts "Sent" under the dot where the track starts. */}
-      <div className="mt-1 flex justify-between pl-7 text-[11.5px] text-muted-foreground">
+      <div className="relative mt-1 flex justify-between pl-7 text-[11.5px] text-muted-foreground">
         <span>Sent</span>
+        {stages !== undefined && (
+          // Measured like the track above it, so each word stands under its own dot and "Pods" under
+          // the squares. A picture narrower than 400px has no room for the words.
+          <div className="absolute inset-y-0 right-11 left-10 hidden @min-[400px]:block">
+            {parts.map((part) => (
+              <span
+                key={part.stage}
+                style={at(part.stage === "pods" ? (part.start + part.end) / 2 : part.end)}
+                className="absolute -translate-x-1/2"
+              >
+                {STAGE_LABEL[part.stage]}
+              </span>
+            ))}
+          </div>
+        )}
         <span>Finished</span>
       </div>
     </div>
@@ -164,14 +216,18 @@ interface RolloutProps {
   progress: string;
   /** The final message, or the reason the page can no longer follow the change. */
   message: string;
+  /** Only for a change that builds an image: the stages it goes through, and the one it is at. */
+  stages?: OperationStage[];
+  stage?: OperationStage;
   /** The page saw this change running, so it is not an old one drawn again after a reload. */
   isLive: boolean;
 }
 
 /** The progress of a confirmed change: the step it is at, Rollo running along the track, then the result. */
-export function Rollout({ state, progress, message, isLive }: RolloutProps) {
-  const pods = parsePodProgress(progress);
-  const headline = currentStep(buildRolloutSteps(state, pods));
+export function Rollout({ state, progress, message, stages, stage, isLive }: RolloutProps) {
+  const pods = podProgressAt(stage, progress);
+  const steps = buildRolloutSteps(state, pods, stages, stage);
+  const headline = currentStep(steps);
   const isFinished = state === "succeeded" || state === "failed";
 
   return (
@@ -190,7 +246,7 @@ export function Rollout({ state, progress, message, isLive }: RolloutProps) {
         </div>
       )}
 
-      <Track state={state} pods={pods} isLive={isLive} />
+      <Track state={state} pods={pods} steps={steps} stages={stages} stage={stage} isLive={isLive} />
 
       {isFinished && (
         <div

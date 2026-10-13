@@ -83,7 +83,7 @@ export function Header() {
         <div className="min-w-0">
           <h1 className="truncate text-base font-bold tracking-[-0.015em]">Deployment Assistant</h1>
           <p className="hidden text-xs text-muted-foreground min-[861px]:block">
-            {ASSISTANT_NAME} deploys, rolls back and checks health by chat
+            {ASSISTANT_NAME} creates, deploys, rolls back and checks health by chat
           </p>
         </div>
       </div>

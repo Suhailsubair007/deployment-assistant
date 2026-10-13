@@ -130,7 +130,7 @@ export function ChatPanel({ environments, onOperationFinished }: ChatPanelProps)
         </form>
 
         <p className="hidden text-center text-xs text-muted-foreground min-[861px]:block">
-          Nothing changes in the cluster until you click Confirm. Each browser tab has its own conversation.
+          Nothing is built or changed until you click Confirm. Each browser tab has its own conversation.
         </p>
       </div>
     </section>

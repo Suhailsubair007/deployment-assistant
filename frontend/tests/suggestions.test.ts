@@ -11,6 +11,7 @@ test("examples use the first environment and its app, and the last environment",
 
   assert.deepEqual(examples, [
     "deploy sample-app version v2 to staging",
+    "create a service",
     "is staging healthy?",
     "how much cpu and ram is staging using?",
     "how are the nodes doing?",
@@ -23,7 +24,11 @@ test("with one environment every example is about that one", () => {
   const examples = buildSuggestions([{ environment: "qa", app: "billing" }]);
 
   assert.equal(examples[0], "deploy billing version v2 to qa");
-  assert.equal(examples[4], "full status of qa");
+  assert.equal(examples[5], "full status of qa");
+});
+
+test("one example creates a service, whatever the names in the cluster are", () => {
+  assert.equal(buildSuggestions([{ environment: "qa", app: "billing" }])[1], "create a service");
 });
 
 test("no environments, no examples", () => {

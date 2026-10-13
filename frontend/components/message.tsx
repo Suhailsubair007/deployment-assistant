@@ -119,6 +119,8 @@ function RolloutMessage({ item, operationId, onFinished }: RolloutMessageProps) 
         state={state}
         progress={operation?.steps.at(-1) ?? ""}
         message={error ?? operation?.message ?? ""}
+        stages={operation?.stages}
+        stage={operation?.stage}
         isLive={isLive}
       />
     </AgentRow>

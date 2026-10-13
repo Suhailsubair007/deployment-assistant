@@ -12,7 +12,7 @@ const codeFont = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrain
 
 export const metadata: Metadata = {
   title: "Deployment Assistant",
-  description: "Deploy, roll back and check health by chat",
+  description: "Create, deploy, roll back and check health by chat",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

@@ -69,7 +69,7 @@ export function Splash() {
           Deployment Assistant
         </p>
         <p className="mt-1.5 animate-message-in text-[15px] text-muted-foreground" style={{ animationDelay: "200ms" }}>
-          Deploy, roll back and check health by chat
+          Create, deploy, roll back and check health by chat
         </p>
 
         <div className="mt-10 animate-message-in" style={{ animationDelay: "300ms" }}>

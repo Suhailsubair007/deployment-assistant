@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { parsePodProgress } from "@/lib/pod-progress.ts";
+import { parsePodProgress, podProgressAt } from "@/lib/pod-progress.ts";
 
 test("reads the ready and wanted pod counts from a progress step", () => {
   assert.deepEqual(parsePodProgress("2/3 pods ready"), { ready: 2, total: 3 });
@@ -21,4 +21,17 @@ test("reads the counts from any step that starts with them", () => {
 
 test("a step without pod counts gives null", () => {
   assert.equal(parsePodProgress("Waiting for the first pod..."), null);
+});
+
+test("a change without stages reads the counts from its step", () => {
+  assert.deepEqual(podProgressAt(undefined, "2/3 pods ready"), { ready: 2, total: 3 });
+});
+
+test("in the pods stage the counts are read from the step", () => {
+  assert.deepEqual(podProgressAt("pods", "0/3 pods ready"), { ready: 0, total: 3 });
+});
+
+test("before the pods stage a step is never a pod count, even when it looks like one", () => {
+  assert.equal(podProgressAt("publish", "2/5 layers uploaded"), null);
+  assert.equal(podProgressAt("build", ""), null);
 });

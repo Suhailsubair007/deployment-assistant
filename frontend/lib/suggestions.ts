@@ -9,6 +9,7 @@ export function buildSuggestions(environments: { environment: string; app: strin
   }
   return [
     `deploy ${first.app} version v2 to ${first.environment}`,
+    "create a service",
     `is ${first.environment} healthy?`,
     `how much cpu and ram is ${first.environment} using?`,
     "how are the nodes doing?",

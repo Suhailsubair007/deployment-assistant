@@ -1,4 +1,4 @@
-import type { RolloMood, RolloutState, SplashStage, StepState } from "@/lib/types.ts";
+import type { OperationStage, RolloMood, RolloutState, SplashStage, StepState } from "@/lib/types.ts";
 
 /** The robot that speaks for the assistant. The name is short for "rollout". */
 export const ASSISTANT_NAME = "Rollo";
@@ -8,12 +8,23 @@ export const POD_COUNTS = /^(\d+)\/(\d+) /;
 // The brackets make split() keep the matched word; \b stops a match inside "SHUTDOWN".
 export const STATUS_WORDS = /\b(HEALTHY|DEGRADED|DOWN)\b/;
 
-// Everything that can go wrong after Confirm goes wrong while the pods start.
-export const PODS_STEP_STATE: Record<RolloutState, StepState> = {
+// The state of the step a change is at. Whatever goes wrong after Confirm goes wrong in that step.
+export const CURRENT_STEP_STATE: Record<RolloutState, StepState> = {
   running: "active",
   succeeded: "done",
   failed: "failed",
   unknown: "pending",
+};
+
+/** A change without stages only starts pods. */
+export const ROLLOUT_ONLY: OperationStage[] = ["pods"];
+
+/** What each stage before the pods is called, and the short line next to that name while the stage runs. */
+export const IMAGE_STAGES: Record<Exclude<OperationStage, "pods">, { title: string; hint: string }> = {
+  // No hint: on a narrow screen this long name and a hint do not fit on one row.
+  repository: { title: "Preparing the image repository", hint: "" },
+  build: { title: "Building the image", hint: "This can take a few minutes" },
+  publish: { title: "Uploading the image", hint: "This can take a few minutes" },
 };
 
 /** How Rollo looks while it follows a change: busy until the end, then pleased or uneasy. */

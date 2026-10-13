@@ -21,12 +21,19 @@ export interface StoredMessage extends AgentReply {
   at: string;
 }
 
+/** The parts of a change that builds an image, in the order they happen. */
+export type OperationStage = "repository" | "build" | "publish" | "pods";
+
 export interface Operation {
   state: "running" | "succeeded" | "failed";
   /** Progress so far, oldest first: "1/3 pods ready", "2/3 pods ready", ... */
   steps: string[];
   /** The final message, once the operation is no longer running. */
   message: string;
+  /** Set for a change that builds an image: every stage it goes through, in order. Left out, there is only the rollout. */
+  stages?: OperationStage[];
+  /** The stage that is running now, or the one that failed. */
+  stage?: OperationStage;
 }
 
 export type EnvironmentStatus = "HEALTHY" | "DEGRADED" | "DOWN" | "NOT DEPLOYED" | "UNKNOWN";
@@ -95,11 +102,18 @@ export type RolloutState = "running" | "succeeded" | "failed" | "unknown";
 export type StepState = "done" | "active" | "failed" | "pending";
 
 export interface RolloutStep {
-  id: "sent" | "pods" | "finished";
+  id: "sent" | OperationStage | "finished";
   title: string;
   /** A short line under the title, or "" for none. */
   detail: string;
   state: StepState;
+}
+
+/** The stretch of the rollout track that belongs to one stage. 0 is the start of the track and 1 its end. */
+export interface TrackPart {
+  stage: OperationStage;
+  start: number;
+  end: number;
 }
 
 export type Tone = "healthy" | "degraded" | "down" | "neutral";

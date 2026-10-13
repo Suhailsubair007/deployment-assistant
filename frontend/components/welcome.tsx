@@ -21,8 +21,8 @@ export function Welcome() {
         className="mt-2 animate-message-in text-[15px] leading-[1.6] text-muted-foreground"
         style={{ animationDelay: "220ms" }}
       >
-        I deploy, roll back and scale your apps, and I tell you how they are doing. Pick an example below or ask in
-        your own words.
+        I create, deploy, roll back and scale your services, and I tell you how they are doing. Pick an example below
+        or ask in your own words.
       </p>
     </div>
   );
