@@ -31,7 +31,7 @@ export interface ToolCall {
 export interface ModelRequest {
   /** What the model is for, and the rules it must follow. */
   instructions: string;
-  /** The user's message, with the open question when there is one. */
+  /** The user's message, with the recent conversation and the open question when there are. */
   message: string;
   tools: ToolDefinition[];
 }
@@ -51,7 +51,7 @@ export interface OpenAiReaderDeps {
   /** Where failures are logged. Tests silence it. */
   log?: (...parts: unknown[]) => void;
 }
-export type Detail = "app" | "environment" | "version" | "replicas" | "limit" | "mine" | "topPodBy";
+export type Detail = "app" | "environment" | "version" | "replicas" | "limit" | "mine" | "topPodBy" | "reply";
 
 export interface Tool {
   /** The intent the Agent gets. Null for the two tools that name no action. */

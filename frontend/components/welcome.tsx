@@ -1,10 +1,18 @@
+import { CapabilityGrid } from "@/components/capability-grid";
 import { Rollo } from "@/components/rollo";
+import type { Capability } from "@/lib/capabilities";
 import { ASSISTANT_NAME } from "@/lib/constants";
 
-/** What an empty conversation shows: Rollo says who it is and what it can do. */
-export function Welcome() {
+interface WelcomeProps {
+  capabilities: Capability[];
+  /** Called with the request of the card that was clicked. */
+  onPick: (example: string) => void;
+}
+
+/** What an empty conversation shows: Rollo says who it is, and cards show what it can do. */
+export function Welcome({ capabilities, onPick }: WelcomeProps) {
   return (
-    <div className="m-auto flex max-w-[440px] flex-col items-center py-6 text-center">
+    <div className="m-auto flex w-full max-w-[640px] flex-col items-center py-6 text-center">
       {/* Rollo lands first, then the two lines of text rise in one after the other. */}
       <div className="animate-drop-in">
         <Rollo hasBody isLive className="h-36 w-[103px]" />
@@ -21,9 +29,14 @@ export function Welcome() {
         className="mt-2 animate-message-in text-[15px] leading-[1.6] text-muted-foreground"
         style={{ animationDelay: "220ms" }}
       >
-        I create, deploy, roll back and scale your services, and I tell you how they are doing. Pick an example below
-        or ask in your own words.
+        I put your apps online, keep them running and tell you how they are doing. Pick something to start, or ask
+        in your own words.
       </p>
+      <CapabilityGrid
+        capabilities={capabilities}
+        onPick={onPick}
+        className="mt-6 w-full animate-message-in"
+      />
     </div>
   );
 }

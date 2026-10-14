@@ -122,7 +122,7 @@ The assistant can read chat messages in two ways. It picks one when it starts, a
 | | Rules (the default) | OpenAI |
 |---|---|---|
 | Turned on by | nothing | `OPENAI_API_KEY` in `.env` |
-| Understands | the phrasings above and close variants | casual language, for example `push v2 out to staging` or `bump staging up to five pods` |
+| Understands | the phrasings above and close variants | casual language, for example `push v2 out to staging` or `bump staging up to five pods`; follow-ups such as `now do the same for prod`; questions such as `what is a replica?` or `what does that mean?`, answered in plain words |
 | Needs | nothing | network access and an OpenAI API key |
 
 **The app works without a key.** It then prints `Messages are read by built-in rules. The LLM is not configured (OPENAI_API_KEY is not set).`
@@ -137,12 +137,14 @@ The model name, the timeout for one call and the pause after a failure are in [c
 
 **If OpenAI cannot be used** (wrong key, no credit, timeout, network down), the rules read the message instead and the reply says so: `Note: OpenAI rejected the API key. I read this message with my built-in rules instead.` The terminal shows the reason with OpenAI's status code. OpenAI is tried again after one minute.
 
-**What does not change.** OpenAI only reads the message. It picks one entry from a fixed list (deploy, scale, roll back, health and so on) and fills in details. The server checks every value, asks for what is missing, and every change still needs **Confirm**. [DESIGN.md](DESIGN.md) section 10 has the details.
+**What does not change.** OpenAI only reads the message. It picks one entry from a fixed list (deploy, scale, roll back, health and so on) and fills in details, or, for a question, writes a short answer in words. It sees the last few messages, so follow-ups work. The server checks every value, asks for what is missing, and every change still needs **Confirm**. [DESIGN.md](DESIGN.md) section 10 has the details.
+
+**A message the assistant does not understand** gets one short line and cards of what it can do (the same cards as on the empty chat). A click on a card puts its request in the message box.
 
 **Try both modes.**
 
 1. *Rules.* Start without a key and type `push v2 out to staging`. The rules do not know "push", so this is not read as a deploy.
-2. *OpenAI.* Add your key, start again and type the same message. The reply is the deploy summary with Confirm and Cancel. Other things to try: `is everything alright in prod?`, `undo the last release on staging`, `bump staging up to five pods`, and `ship v2` followed by `the staging one please`.
+2. *OpenAI.* Add your key, start again and type the same message. The reply is the deploy summary with Confirm and Cancel. Other things to try: `is everything alright in prod?`, `undo the last release on staging`, `bump staging up to five pods`, `ship v2` followed by `the staging one please`, `deploy sample-app v2 to staging` followed by `now do the same for prod`, and `what is a replica?`.
 3. *Fallback.* Set `OPENAI_API_KEY=sk-wrong`, start again and type `how are the nodes doing?`. You get the answer and the note above.
 
 ## Seeing it handle problems

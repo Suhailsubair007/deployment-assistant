@@ -11,7 +11,6 @@ import {
   formatNodes,
   formatPlan,
   formatProtectedWarning,
-  formatSuggestions,
   formatTopPod,
   formatUsage,
 } from "@/agent/replyFormatter.ts";
@@ -30,6 +29,7 @@ import {
   STARTED_MESSAGES,
   WIZARD_BUSY,
 } from "@/constants/agent.ts";
+import { RECENT_MESSAGES } from "@/constants/llm.ts";
 import { AppError, InvalidRequestError } from "@/errors.ts";
 import type { DeploymentService } from "@/services/deploymentService.ts";
 import { formatDeploymentId } from "@/services/historyStore.ts";
@@ -43,6 +43,7 @@ import type {
   MessageReader,
   OpenQuestions,
   ParsedMessage,
+  RecentMessage,
   Session,
 } from "@/types/agent.ts";
 import type { AppConfig } from "@/types/config.ts";
@@ -79,20 +80,24 @@ export class Agent {
   /** Answers one chat message. Problems the user can act on come back as a normal reply. */
   async handleMessage(sessionId: string, text: string, user: string): Promise<AgentReply> {
     const session = this.sessions.get(sessionId);
-    this.sessions.addMessage(session, { role: "user", text, at: new Date(this.now()) });
+    // Taken before this message is added: the conversation so far.
+    const recent = this.recentForModel(session);
 
     // While the questions for a service are open, every message is an answer to the
     // current one. It goes to the question flow, where fixed rules check it. It is never
-    // handed to the message reader, so a folder path or a variable is not sent to OpenAI.
+    // handed to the message reader, so a folder path or a variable is not sent to OpenAI;
+    // these messages are also left out of the conversation the reader sees later.
     if (session.questions !== undefined) {
+      this.sessions.addMessage(session, { role: "user", text, at: new Date(this.now()), hiddenFromModel: true });
       const open = session.questions;
       const reply = await this.asReply(() => this.continueQuestions(session, open, text));
-      this.record(session, reply);
+      this.record(session, { ...reply, hiddenFromModel: true });
       return reply;
     }
+    this.sessions.addMessage(session, { role: "user", text, at: new Date(this.now()) });
 
     // The reader is told about an open question, so it can read "the staging one" as its answer.
-    const reading = await this.reader.read(text, session.awaiting);
+    const reading = await this.reader.read(text, session.awaiting, recent);
     const reply = await this.asReply(() => this.respond(session, reading.parsed, text, user));
     if (reading.fallbackNote !== undefined) {
       reply.text += `\nNote: ${reading.fallbackNote}`;
@@ -149,8 +154,8 @@ export class Agent {
   private async respond(session: Session, parsed: ParsedMessage, text: string, user: string): Promise<AgentReply> {
     const request = this.combine(session, parsed, text);
     if (request === null || request.intent === null) {
-      // One sentence and a few requests to click. The full list is the answer to "help".
-      return { text: NOT_UNDERSTOOD, suggestions: formatSuggestions(this.known) };
+      // One sentence, and the browser shows what the assistant can do as cards to click.
+      return { text: NOT_UNDERSTOOD, showCapabilities: true };
     }
 
     if (request.unknownEnvironment !== undefined && request.environment === undefined) {
@@ -162,8 +167,12 @@ export class Agent {
       };
     }
 
-    // These three are not about one app, so they never ask which one.
+    // These are not about one app, so they never ask which one.
     switch (request.intent) {
+      case "chat":
+        // Words only. An open question stays open, so the next message can still answer it.
+        return { text: request.reply ?? NOT_UNDERSTOOD };
+
       case "help":
         return { text: formatHelp(this.known, this.reader.description) };
 
@@ -407,6 +416,14 @@ export class Agent {
 
   // ---- Small helpers ----
 
+  /** The last messages the reader may see. Messages of the service questions are left out. */
+  private recentForModel(session: Session): RecentMessage[] {
+    return session.messages
+      .filter((message) => message.hiddenFromModel !== true)
+      .slice(-RECENT_MESSAGES)
+      .map(({ role, text }) => ({ role, text }));
+  }
+
   /** Remembers the request and asks for the missing detail. */
   private ask(session: Session, request: ParsedMessage, question: string): AgentReply {
     session.awaiting = request;
@@ -445,7 +462,7 @@ export class Agent {
     }
   }
 
-  private record(session: Session, reply: AgentReply): void {
+  private record(session: Session, reply: AgentReply & { hiddenFromModel?: boolean }): void {
     this.sessions.addMessage(session, { role: "agent", at: new Date(this.now()), ...reply });
   }
 }

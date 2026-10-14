@@ -13,8 +13,8 @@ export interface AgentReply {
   action?: { id: string; warning: string | null };
   /** Set when a change has started: the browser follows its progress by this ID. */
   operationId?: string;
-  /** Requests the user could send instead. The browser shows them as buttons that fill the message box. */
-  suggestions?: string[];
+  /** Set when the reply could not help: the browser shows what the assistant can do, as cards to click. */
+  showCapabilities?: boolean;
 }
 
 export interface AgentDeps {
@@ -44,7 +44,9 @@ export type IntentName =
   | "nodes"
   | "status"
   | "history"
-  | "help";
+  | "help"
+  /** A question or remark the model answers in words: no action and no live data. Only OpenAI gives this. */
+  | "chat";
 
 export interface ParsedMessage {
   /** Null when the message names no action, for example the answer "staging" to a question. */
@@ -62,6 +64,8 @@ export interface ParsedMessage {
   mine?: boolean;
   /** Set for "which pod uses the most memory?". */
   topPodBy?: "cpu" | "memory";
+  /** The model's own answer, for a "chat" message. */
+  reply?: string;
 }
 
 export interface KnownNames {
@@ -78,8 +82,14 @@ export interface Reading {
 export interface MessageReader {
   /** How messages are read. Shown when the app starts and in the help text. */
   description: string;
-  /** Reads one message. Never throws. */
-  read(text: string, awaiting?: ParsedMessage): Promise<Reading>;
+  /** Reads one message. `recent` is the conversation before it, oldest first. Never throws. */
+  read(text: string, awaiting?: ParsedMessage, recent?: RecentMessage[]): Promise<Reading>;
+}
+
+/** One earlier message of the conversation, as the model may see it. */
+export interface RecentMessage {
+  role: "user" | "agent";
+  text: string;
 }
 
 export interface MessageReaderOptions {
@@ -97,8 +107,10 @@ export interface ChatMessage {
   action?: { id: string; warning: string | null };
   /** Set on an agent message about a change that was started; progress is read by this ID. */
   operationId?: string;
-  /** Set on an agent message that offers requests to try instead. */
-  suggestions?: string[];
+  /** Set on an agent message that shows what the assistant can do. */
+  showCapabilities?: boolean;
+  /** Set on messages of the service questions: folder paths and variables are never sent to OpenAI. */
+  hiddenFromModel?: boolean;
 }
 
 export interface PendingAction {

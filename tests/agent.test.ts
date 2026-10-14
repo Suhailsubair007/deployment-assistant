@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { Agent } from "@/agent/agent.ts";
-import type { ParsedMessage } from "@/types/agent.ts";
+import type { ParsedMessage, RecentMessage } from "@/types/agent.ts";
 import type { MessageReader, Reading } from "@/types/agent.ts";
 import { createRuleReader } from "@/agent/messageReader.ts";
 import { SessionStore } from "@/agent/sessionStore.ts";
@@ -350,31 +350,24 @@ test("a message the agent does not understand gets one sentence that lists what 
 
   assert.equal(
     reply.text,
-    "I'm not sure how to help with that. I can create a service from a project folder, deploy, roll back, scale and edit your apps, and show their health, CPU and memory, a full status, the nodes and past deployments.",
+    "I didn't quite catch that. Here is what I can help with: pick one, or say it in other words.",
   );
 });
 
-test("a message the agent does not understand comes with a few requests to try instead", async () => {
+test("a message the agent does not understand asks the browser to show what it can do", async () => {
   const { say } = await setup();
 
   const reply = await say("tell me a joke");
 
-  assert.deepEqual(reply.suggestions, [
-    "create a service",
-    "is staging healthy?",
-    "deploy sample-app version v2 to staging",
-    "show my last 5 deployments",
-    "what can you do?",
-  ]);
+  assert.equal(reply.showCapabilities, true);
 });
 
-test("the requests to try are kept with the conversation, so a page reload still shows them", async () => {
+test("the request to show what it can do is kept with the conversation, so a page reload still shows it", async () => {
   const { say, sessions } = await setup();
 
-  const reply = await say("tell me a joke");
+  await say("tell me a joke");
 
-  assert.deepEqual(sessions.get(TAB).messages.at(-1)?.suggestions, reply.suggestions);
-  assert.equal(reply.suggestions?.length, 5);
+  assert.equal(sessions.get(TAB).messages.at(-1)?.showCapabilities, true);
 });
 
 // ---- History ----
@@ -415,15 +408,84 @@ test("each message and reply is recorded in the tab's session", async () => {
 /** Stands in for the OpenAI reader: gives the listed readings in order and records what it was asked. */
 function scriptedReader(readings: Reading[]) {
   const asked: { text: string; awaiting: ParsedMessage | undefined }[] = [];
+  const recents: RecentMessage[][] = [];
   const reader: MessageReader = {
     description: "Messages are read by a test reader.",
-    read: async (text, awaiting) => {
+    read: async (text, awaiting, recent = []) => {
       asked.push({ text, awaiting });
+      recents.push(recent);
       return readings.shift() ?? { parsed: { intent: null } };
     },
   };
-  return { reader, asked };
+  return { reader, asked, recents };
 }
+
+test("a chat answer from the model is the reply, and changes nothing", async () => {
+  const answer = "A replica is one running copy of your app. More copies means more visitors can be served at once.";
+  const { reader } = scriptedReader([{ parsed: { intent: "chat", reply: answer } }]);
+  const { say, gateway } = await setup(reader);
+
+  const reply = await say("what is a replica?");
+
+  assert.equal(reply.text, answer);
+  assert.equal(reply.action, undefined);
+  assert.deepEqual(gateway.writes, []);
+});
+
+test("a chat answer leaves an open question open, so the next message still answers it", async () => {
+  const { reader, asked } = scriptedReader([
+    { parsed: { intent: "scale", app: "sample-app", environment: "staging" } },
+    { parsed: { intent: "chat", reply: "A replica is one running copy of your app." } },
+    { parsed: { intent: null, replicas: 4 } },
+  ]);
+  const { say } = await setup(reader);
+
+  await say("scale sample-app in staging");
+  await say("what is a replica?");
+  const reply = await say("4 then");
+
+  assert.deepEqual(asked[2].awaiting, { intent: "scale", app: "sample-app", environment: "staging" });
+  assert.ok(reply.action, "the reply should offer Confirm and Cancel");
+});
+
+test("the reader sees the conversation before the message", async () => {
+  const { reader, recents } = scriptedReader([
+    { parsed: { intent: "health", app: "sample-app", environment: "staging" } },
+    { parsed: { intent: "chat", reply: "It means all copies are running." } },
+  ]);
+  const { say } = await setup(reader);
+
+  const health = await say("is sample-app healthy in staging?");
+  await say("what does that mean?");
+
+  assert.deepEqual(recents[0], []);
+  assert.deepEqual(recents[1], [
+    { role: "user", text: "is sample-app healthy in staging?" },
+    { role: "agent", text: health.text },
+  ]);
+});
+
+test("the answers to the service questions are never in the conversation the reader sees", async () => {
+  const rules = createRuleReader({ environments: ["staging", "prod"], apps: ["sample-app"] });
+  const recents: RecentMessage[][] = [];
+  const watching: MessageReader = {
+    description: rules.description,
+    read: async (text, awaiting, recent = []) => {
+      recents.push(recent);
+      return rules.read(text, awaiting);
+    },
+  };
+  const { say } = await setup(watching);
+  await say("create a service");
+  await say(FOLDER);
+  await say("cancel");
+
+  await say("show nodes");
+
+  const seen = recents.at(-1)?.map((message) => message.text).join("\n") ?? "";
+  assert.ok(!seen.includes(FOLDER), seen);
+  assert.ok(seen.includes("create a service"), seen);
+});
 
 const FALLBACK_NOTE = "OpenAI rejected the API key. I read this message with my built-in rules instead.";
 

@@ -3,6 +3,7 @@ import { test } from "node:test";
 
 import { parseMessage } from "@/agent/intentParser.ts";
 import type { ParsedMessage } from "@/types/agent.ts";
+import { buildCapabilities } from "../frontend/lib/capabilities.ts";
 
 const known = { environments: ["staging", "prod"], apps: ["sample-app"] };
 
@@ -116,4 +117,14 @@ test("a word that is one mistake away from two environments is not guessed", () 
 
 test("a question about a deploy is read as a question, not as an order to deploy", () => {
   assert.equal(parseMessage("is the deploy healthy in staging?", known).intent, "health");
+});
+
+// ---- The cards the page shows ----
+
+test("every card the page shows is a request the rules understand, so it works without OpenAI", () => {
+  const cards = [...buildCapabilities([{ environment: "staging", app: "sample-app" }]), ...buildCapabilities([])];
+
+  for (const card of cards) {
+    assert.notEqual(parseMessage(card.example, known).intent, null, card.example);
+  }
 });

@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Welcome } from "@/components/welcome";
 import { useConversation } from "@/hooks/use-conversation";
+import { buildCapabilities } from "@/lib/capabilities";
 import { ASSISTANT_NAME } from "@/lib/constants";
 import { buildSuggestions } from "@/lib/suggestions";
 import type { EnvironmentSummary } from "@/lib/types";
@@ -33,6 +34,8 @@ export function ChatPanel({ environments, onOperationFinished }: ChatPanelProps)
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const suggestions = buildSuggestions(environments ?? []);
+  const capabilities = buildCapabilities(environments ?? []);
+  const isEmpty = isLoaded && items.length === 0;
 
   const scrollToNewest = useCallback(() => {
     const list = listRef.current;
@@ -76,7 +79,7 @@ export function ChatPanel({ environments, onOperationFinished }: ChatPanelProps)
       {/* This box scrolls. New messages are announced to screen readers as they arrive. */}
       <div ref={listRef} aria-live="polite" className="edge-fade min-h-0 flex-1 overflow-y-auto scroll-smooth">
         <div className={`${COLUMN} flex min-h-full flex-col gap-5 px-1 py-5 min-[861px]:px-3`}>
-          {isLoaded && items.length === 0 && <Welcome />}
+          {isEmpty && <Welcome capabilities={capabilities} onPick={fillMessageBox} />}
           {/* The list only grows, so the position of a message is a stable key. */}
           {items.map((item, index) =>
             item.role === "user" ? (
@@ -85,6 +88,7 @@ export function ChatPanel({ environments, onOperationFinished }: ChatPanelProps)
               <AgentMessage
                 key={index}
                 item={item}
+                capabilities={capabilities}
                 onDecide={decide}
                 onSuggest={fillMessageBox}
                 onOperationFinished={handleOperationFinished}
@@ -96,7 +100,8 @@ export function ChatPanel({ environments, onOperationFinished }: ChatPanelProps)
       </div>
 
       <div className={`${COLUMN} grid gap-2.5 px-1 min-[861px]:px-3`}>
-        {suggestions.length > 0 && (
+        {/* On the welcome screen the cards show the same requests, so the row waits for the first message. */}
+        {suggestions.length > 0 && !isEmpty && (
           <div aria-label="Example requests" className="flex animate-message-in flex-wrap items-center gap-1.5">
             <span className="mr-0.5 text-xs font-semibold text-muted-foreground">Try</span>
             <SuggestionChips examples={suggestions} onPick={fillMessageBox} />

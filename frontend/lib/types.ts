@@ -11,8 +11,8 @@ export interface AgentReply {
   action?: ActionRequest;
   /** A change has started; the page follows its progress by this ID. */
   operationId?: string;
-  /** Requests the user could send instead. The page shows them as buttons that fill the message box. */
-  suggestions?: string[];
+  /** Set on a reply that could not help: the page shows what the assistant can do, as cards to click. */
+  showCapabilities?: boolean;
 }
 
 /** One message of this tab's conversation, as the server stored it. */
@@ -78,8 +78,8 @@ export interface ChatItem {
   actionNote?: string;
   /** Set on an agent message about a change that was started. */
   operationId?: string;
-  /** Set on an agent message that offers requests to try instead. */
-  suggestions?: string[];
+  /** Set on an agent message that shows what the assistant can do. */
+  showCapabilities?: boolean;
 }
 
 /** Who is asking: the tab's conversation and the name stored as "requested by". */

@@ -308,20 +308,24 @@ What differs between clouds stays in settings and behind the two boundaries: the
 
 When `OPENAI_API_KEY` is set, an OpenAI model reads the messages instead and handles that kind of phrasing. Without a key the app starts normally and says that the LLM is not configured.
 
-**How the LLM is used.** It is tool calling in which the tools do nothing by themselves. The model gets one message and a fixed list of thirteen tools (`deploy`, `scale`, `roll_back`, `check_health` and so on) and must pick one and fill in its details. The pick is turned into the same small request the rules produce. From there the Agent code is the same in both modes: it asks for missing details, validates, and shows Confirm.
+**How the LLM is used.** It is tool calling in which the tools do nothing by themselves. The model gets one message, the last few messages before it, and a fixed list of fourteen tools (`deploy`, `scale`, `roll_back`, `check_health` and so on) and must pick one and fill in its details. The pick is turned into the same small request the rules produce. From there the Agent code is the same in both modes: it asks for missing details, validates, and shows Confirm.
 
-Two of the thirteen are new: `create_service` and `edit_service`. They only open the questions. `create_service` can carry an environment and nothing else; `edit_service` can carry an app and an environment. Neither has a place for a folder, a port, an amount or a variable, so the model cannot supply one.
+Three of the fourteen came later: `create_service`, `edit_service` and `chat`. They only open the questions. `create_service` can carry an environment and nothing else; `edit_service` can carry an app and an environment. Neither has a place for a folder, a port, an amount or a variable, so the model cannot supply one.
+
+**`chat`: answers in words.** Many users are not engineers. For a greeting, a question about a word (`what is a replica?`) or about an earlier reply (`is that bad?`), the model picks `chat` and writes a short answer in plain words. `chat` does nothing and reads nothing from the cluster: the instructions say it is never used for live information, and the model can only talk about what the conversation already shows. An open question stays open, so `what is a replica?` followed by `4` still answers "how many replicas?". When the model cannot tell what the user wants it picks `not_understood`, and the page shows cards of what the assistant can do.
+
+**The last messages go with each message** (eight, each cut to 600 characters), so `now do the same for prod` works. A version or an environment still counts only when the user wrote it: in this message or in one of their earlier ones, never only in a reply of the assistant.
 
 **What is sent to OpenAI, and what is not.**
 
 | Sent, when a key is set | Never sent |
 |---|---|
-| The message the user typed, when no service questions are open | Any answer to the service questions: the folder path, the name, the port, the health path, CPU, memory, replicas, variables |
-| The unfinished request, when the assistant has asked for a missing detail (for example: a deploy that still needs its environment) | Cluster data: pod names, log lines, events, metrics |
+| The message the user typed, when no service questions are open | Any answer to the service questions: the folder path, the name, the port, the health path, CPU, memory, replicas, variables. These messages and the replies to them, including the summary of the new service, are also left out of the recent conversation |
+| The unfinished request, when the assistant has asked for a missing detail (for example: a deploy that still needs its environment) | Cluster data that was not shown in the chat: log lines, events, metrics read for the status panel |
 | The names of the environments and of the services, so the model can recognise them. This now includes the names of services created from the chat | What `docker`, `kind`, `aws` or `terraform` printed, and the contents of a Dockerfile |
-| | The assistant's own replies, including the summary shown before Confirm |
+| The last eight messages of the conversation, the user's and the assistant's. So what a reply showed (pod names, restart counts, a deploy summary) is sent with the next message | |
 
-The rule behind the first row is in `handleMessage` in `src/agent/agent.ts`: while the questions are open, every message goes to the question workflow (`src/agent/serviceFlow.ts`), whose `check` step runs the fixed rules of `src/agent/serviceWizard.ts`, and the message reader is not called. A unit test counts the calls to prove it. Whether a message typed in the middle is another request is also decided locally, by the rule-based parser.
+The rule behind the first row is in `handleMessage` in `src/agent/agent.ts`: while the questions are open, every message goes to the question workflow (`src/agent/serviceFlow.ts`), whose `check` step runs the fixed rules of `src/agent/serviceWizard.ts`, and the message reader is not called. A unit test counts the calls to prove it. Those messages are stored with `hiddenFromModel`, so they are also left out of the recent conversation; another test checks that a folder path never reaches the reader. Whether a message typed in the middle is another request is also decided locally, by the rule-based parser.
 
 One thing to know: the message that starts the questions is read like any other. If a user writes a folder path or a password into that first sentence, it is sent. The questions that follow are not.
 

@@ -7,8 +7,7 @@ export const CONFIRMATION_EXPIRED = "That confirmation has expired. Please ask a
 export const CANCELLED = "Cancelled. Nothing was changed.";
 // It lists what the assistant can do and blames nobody: the message may be off-topic,
 // or a real request in words the reader does not know.
-export const NOT_UNDERSTOOD =
-  "I'm not sure how to help with that. I can create a service from a project folder, deploy, roll back, scale and edit your apps, and show their health, CPU and memory, a full status, the nodes and past deployments.";
+export const NOT_UNDERSTOOD = "I didn't quite catch that. Here is what I can help with: pick one, or say it in other words.";
 export const RULES_DESCRIPTION =
   "Messages are read by built-in rules. The LLM is not configured (OPENAI_API_KEY is not set).";
 

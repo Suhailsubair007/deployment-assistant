@@ -4,12 +4,13 @@ import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { cn } from "cn";
 
+import { CapabilityGrid } from "@/components/capability-grid";
 import { Confirmation } from "@/components/confirmation";
 import { ReplyText } from "@/components/reply-text";
 import { Rollo } from "@/components/rollo";
 import { Rollout } from "@/components/rollout";
-import { SuggestionChips } from "@/components/suggestion-chips";
 import { useOperation } from "@/hooks/use-operation";
+import type { Capability } from "@/lib/capabilities";
 import { ASSISTANT_NAME, MOOD_OF_ROLLOUT } from "@/lib/constants";
 import { moodOfReply } from "@/lib/rollo-mood";
 import type { ChatItem, RolloMood, RolloutState } from "@/lib/types";
@@ -129,15 +130,17 @@ function RolloutMessage({ item, operationId, onFinished }: RolloutMessageProps) 
 
 interface AgentMessageProps {
   item: ChatItem;
+  /** What the assistant can do, shown in a reply that could not help. */
+  capabilities: Capability[];
   onDecide: (actionId: string, choice: "confirm" | "cancel") => void;
-  /** Called with a suggested request that was clicked. */
+  /** Called with the request of a card that was clicked. */
   onSuggest: (example: string) => void;
   onOperationFinished: () => void;
 }
 
-/** An agent reply: its text, then Confirm and Cancel, requests to try, or the progress of a change. */
-export function AgentMessage({ item, onDecide, onSuggest, onOperationFinished }: AgentMessageProps) {
-  const { action, operationId, suggestions } = item;
+/** An agent reply: its text, then Confirm and Cancel, what the assistant can do, or the progress of a change. */
+export function AgentMessage({ item, capabilities, onDecide, onSuggest, onOperationFinished }: AgentMessageProps) {
+  const { action, operationId, showCapabilities } = item;
   if (operationId !== undefined) {
     return <RolloutMessage item={item} operationId={operationId} onFinished={onOperationFinished} />;
   }
@@ -147,14 +150,9 @@ export function AgentMessage({ item, onDecide, onSuggest, onOperationFinished }:
       {action !== undefined && (
         <Confirmation action={action} note={item.actionNote} onDecide={(choice) => onDecide(action.id, choice)} />
       )}
-      {suggestions !== undefined && suggestions.length > 0 && (
+      {showCapabilities === true && (
         // Sent with a reply that could not help: a way forward that takes one click.
-        <div className="mt-2.5 grid animate-line-in gap-1.5" style={{ animationDelay: "90ms" }}>
-          <span className="text-xs text-muted-foreground">Try one of these</span>
-          <div className="flex flex-wrap gap-1.5">
-            <SuggestionChips examples={suggestions} onPick={onSuggest} chipClassName="bg-sunken text-foreground" />
-          </div>
-        </div>
+        <CapabilityGrid capabilities={capabilities} onPick={onSuggest} className="mt-2.5" />
       )}
     </AgentRow>
   );

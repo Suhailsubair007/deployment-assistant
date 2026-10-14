@@ -34,6 +34,6 @@ test("with an API key the messages go to OpenAI, with the model named in the con
 
   assert.equal(
     reader.description,
-    "Messages are read by OpenAI (gpt-4.1-mini). If it is unavailable, built-in rules read them instead.",
+    "Messages are read by OpenAI (gpt-4.1-mini), which also answers questions in plain words. If it is unavailable, built-in rules read them instead.",
   );
 });
